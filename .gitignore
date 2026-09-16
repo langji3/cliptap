@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.vs/
+artifacts/
+docs/plans/
+*.user
+*.suo
+*.tmp
+.DS_Store
