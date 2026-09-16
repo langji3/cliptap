@@ -357,7 +357,11 @@ internal static class Program
             Render(panel, Path.Combine(artifactDirectory, "images-light.png"));
             ThemeService.ApplyTheme(AppearanceMode.Dark, AccentPalette.Purple);
             Render(panel, Path.Combine(artifactDirectory, "images-dark.png"));
-            historySource.RestoreResult = false; list.Focus(); SendKey(panel, Key.Enter);
+            historySource.RestoreResult = false;
+            var imageCard = (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0);
+            imageCard.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.PreviewMouseUpEvent });
+            Equal<Guid?>(imageId, historySource.RestoredImage); Check(panel.IsVisible);
+            list.Focus(); SendKey(panel, Key.Enter);
             Equal<Guid?>(imageId, historySource.RestoredImage); Check(panel.IsVisible);
             Equal("图片已失效或剪贴板忙", ((TextBlock)panel.FindName("StatusLabel")).Text);
             historySource.RestoreResult = true; SendKey(panel, Key.Enter); Check(!panel.IsVisible);
@@ -366,6 +370,42 @@ internal static class Program
             historySource.Snapshot = new(HistoryStatus.Ready, []);
             var restore = snapshot.RestoreImageAsync(imageId); Await(restore); Check(!restore.Result);
             Check(app.Library.State.History.All(i => i.Id != imageId));
+        });
+        Test("Cards: more never pastes, Escape closes actions, delete/clear require confirmation", () =>
+        {
+            var id = Guid.NewGuid();
+            historySource.Snapshot = new(HistoryStatus.Ready, [new(id, "卡片操作验证", Now)]);
+            panel.OpenPanel(false); panel.UpdateLayout();
+            var list = (ListBox)panel.FindName("Entries");
+            Button RowButton(string label)
+            {
+                panel.UpdateLayout();
+                return Descendants<Button>((DependencyObject)list.ItemContainerGenerator.ContainerFromIndex(0)).Single(b => Equals(b.Content, label));
+            }
+            var more = RowButton("⋯");
+            more.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.PreviewMouseUpEvent });
+            Check(panel.IsVisible);
+            more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Check(((EntryRow)list.Items[0]).ActionsOpen);
+            SendKey(panel, Key.Escape); Check(panel.IsVisible); Check(!((EntryRow)list.Items[0]).ActionsOpen);
+            RowButton("⋯").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            RowButton("删除").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var confirmation = (InlineConfirmation)panel.FindName("Confirmation");
+            Check(confirmation.IsOpen); Check(historySource.DeletedId is null);
+            Click(confirmation, "CancelButton"); Equal(1, app.History.Count);
+            RowButton("删除").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            historySource.DeleteResult = false; Click(confirmation, "ConfirmButton");
+            Equal(1, app.History.Count); Equal("删除失败，请重试", ((TextBlock)panel.FindName("StatusLabel")).Text);
+            historySource.DeleteResult = true;
+            RowButton("⋯").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            RowButton("删除").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Click(confirmation, "ConfirmButton");
+            Equal<Guid?>(id, historySource.DeletedId); Equal(0, app.History.Count);
+            Check(!((Button)panel.FindName("ClearHistoryButton")).IsEnabled);
+            historySource.Snapshot = new(HistoryStatus.Ready, [new(Guid.NewGuid(), "clear test", Now)]);
+            Await(app.RefreshSystemHistoryAsync()); panel.RefreshRows();
+            Click(panel, "ClearHistoryButton"); Check(confirmation.IsOpen); Click(confirmation, "CancelButton"); Equal(1, app.History.Count);
+            Click(panel, "ClearHistoryButton"); Click(confirmation, "ConfirmButton"); Equal(0, app.History.Count);
+            SendKey(panel, Key.Right); Equal(Visibility.Collapsed, ((Grid)panel.FindName("HistoryToolbar")).Visibility);
+            panel.Hide();
         });
         if (args.Contains("--system-history"))
             Test("Windows native history: read-only API probe (contents not logged)", () =>
@@ -383,6 +423,15 @@ internal static class Program
     }
 
     private static void Click(FrameworkElement parent, string name) => ((Button)parent.FindName(name)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) yield return match;
+            foreach (var nested in Descendants<T>(child)) yield return nested;
+        }
+    }
     private static void Await(Task task)
     {
         if (!task.IsCompleted)
@@ -452,6 +501,14 @@ internal sealed class FakeHistorySource : ISystemHistorySource
     internal bool ClearResult { get; set; } = true;
     internal Guid? RestoredImage { get; private set; }
     internal bool RestoreResult { get; set; } = true;
+    internal Guid? DeletedId { get; private set; }
+    internal bool DeleteResult { get; set; } = true;
+    public Task<bool> DeleteAsync(Guid id)
+    {
+        DeletedId = id;
+        if (DeleteResult) Snapshot = Snapshot with { Items = Snapshot.Items.Where(i => i.Id != id).ToArray() };
+        return Task.FromResult(DeleteResult);
+    }
     public Task<bool> RestoreImageAsync(Guid id) { RestoredImage = id; return Task.FromResult(RestoreResult && Snapshot.Items.Any(i => i.Id == id && i.IsImage)); }
     public Task<HistorySnapshot> ReadAsync() => Read?.Invoke() ?? Task.FromResult(Snapshot);
     public bool Clear()

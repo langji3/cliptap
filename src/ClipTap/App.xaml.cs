@@ -28,6 +28,7 @@ public partial class App : System.Windows.Application
     internal ClipboardService ClipboardService => _clipboard!;
     internal bool IsQuitting { get; private set; }
     internal bool HotkeyAvailable => _events?.HotkeyAvailable ?? true;
+    internal bool AnimatePanel => !_testHost && SystemParameters.ClientAreaAnimation;
     internal HistoryStatus HistoryStatus => _history?.Snapshot.Status ?? HistoryStatus.Unavailable;
     internal IReadOnlyList<HistoryEntry> History => (_history?.Snapshot.Items ?? [])
         .Where(c => c.IsImage || !Library.State.Snippets.Any(s => s.IsSensitive && s.Value == c.Text)).ToArray();
@@ -136,6 +137,7 @@ public partial class App : System.Windows.Application
         return _history.RefreshAsync();
     }
     internal Task<bool> ClearSystemHistoryAsync() => _history?.ClearAsync() ?? Task.FromResult(false);
+    internal Task<bool> DeleteSystemHistoryAsync(Guid id) => _history?.DeleteAsync(id) ?? Task.FromResult(false);
     internal Task<bool> RestoreHistoryImageAsync(Guid id) => _history?.RestoreImageAsync(id) ?? Task.FromResult(false);
     internal bool OpenSystemClipboardSettings()
     {

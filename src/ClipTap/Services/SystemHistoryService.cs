@@ -23,6 +23,7 @@ internal interface ISystemHistorySource : IDisposable
     Task<HistorySnapshot> ReadAsync();
     bool Clear();
     Task<bool> RestoreImageAsync(Guid id);
+    Task<bool> DeleteAsync(Guid id);
 }
 
 internal sealed class WindowsHistorySource : ISystemHistorySource
@@ -105,6 +106,13 @@ internal sealed class WindowsHistorySource : ISystemHistorySource
             && SystemClipboard.SetHistoryItemAsContent(item) == SetHistoryItemAsContentStatus.Success;
     }
     public bool Clear() => SystemClipboard.ClearHistory();
+    public async Task<bool> DeleteAsync(Guid id)
+    {
+        var result = await SystemClipboard.GetHistoryItemsAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        if (result.Status != ClipboardHistoryItemsResultStatus.Success) return false;
+        var item = result.Items.FirstOrDefault(i => Identity(i.Id) == id);
+        return item is null || SystemClipboard.DeleteItemFromHistory(item);
+    }
     public void Dispose()
     {
         if (_historySubscribed) SystemClipboard.HistoryChanged -= OnChanged;
@@ -153,6 +161,17 @@ internal sealed class SystemHistoryService(ISystemHistorySource source) : IDispo
         try { return await source.RestoreImageAsync(id); }
         catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or InvalidOperationException or TimeoutException or OperationCanceledException)
         { return false; }
+    }
+    internal async Task<bool> DeleteAsync(Guid id)
+    {
+        if (_disposed) return false;
+        bool deleted;
+        try { deleted = await source.DeleteAsync(id); }
+        catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or InvalidOperationException or TimeoutException or OperationCanceledException)
+        { deleted = false; }
+        Invalidate();
+        await RefreshAsync();
+        return deleted;
     }
     public void Dispose() { _disposed = true; ++_revision; source.Dispose(); }
 }

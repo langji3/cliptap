@@ -4,13 +4,14 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using ClipTap.Core;
 using ClipTap.Services;
 using ClipTap.Views;
 
 namespace ClipTap;
 
-internal sealed record EntryRow(Guid Id, string Title, string Detail, bool Sensitive, bool Pinned, bool IsImage = false, ImageSource? Thumbnail = null)
+internal sealed record EntryRow(Guid Id, string Title, string Detail, bool Sensitive, bool Pinned, bool IsImage = false, ImageSource? Thumbnail = null, bool ActionsOpen = false)
 {
     public override string ToString() => Title;
 }
@@ -21,6 +22,7 @@ public partial class MainWindow : Window
     private nint _handle;
     private int _tab;
     private bool _busy;
+    private Guid? _menuId;
     private PasteTarget? _target;
     private SnippetView? _editor;
     private SettingsView? _settings;
@@ -37,7 +39,9 @@ public partial class MainWindow : Window
     internal void OpenPanel(bool captureTarget)
     {
         if (_busy) return;
+        var entering = !IsVisible;
         Confirmation.Dismiss();
+        _menuId = null;
         _editor?.DismissConfirmation();
         _settings?.DismissConfirmation();
         _target = captureTarget ? PasteService.CaptureTarget() : null;
@@ -50,6 +54,18 @@ public partial class MainWindow : Window
         if (IsList) { _tab = 0; RefreshRows(); }
         PlaceNearTarget();
         Show(); Activate();
+        if (entering && _app.AnimatePanel)
+        {
+            var duration = TimeSpan.FromMilliseconds(160);
+            var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+            PanelSurface.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = easing });
+            EntranceOffset.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, 0, duration) { EasingFunction = easing });
+        }
+        else
+        {
+            PanelSurface.BeginAnimation(OpacityProperty, null); PanelSurface.Opacity = 1;
+            EntranceOffset.BeginAnimation(TranslateTransform.YProperty, null); EntranceOffset.Y = 0;
+        }
         _ = LoadHistoryAsync();
         if (IsList) Entries.Focus(); else PageHost.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
     }
@@ -76,6 +92,7 @@ public partial class MainWindow : Window
             ? _app.History.Select(c => new EntryRow(c.Id, c.IsImage ? "图片" : Library.Preview(c.Text), c.CopiedAt.ToLocalTime().ToString("HH:mm"), false, false, c.IsImage, c.Thumbnail)).ToList()
             : _app.Library.OrderedSnippets().Select(s => new EntryRow(s.Id, s.Title, "", s.IsSensitive, s.IsPinned)).ToList();
         Entries.ItemsSource = rows;
+        if (_menuId.HasValue) { rows = rows.Select(r => r with { ActionsOpen = r.Id == _menuId }).ToList(); Entries.ItemsSource = rows; }
         Entries.SelectedItem = rows.FirstOrDefault(r => r.Id == selected) ?? rows.FirstOrDefault();
         if (Entries.SelectedItem is not null) Entries.ScrollIntoView(Entries.SelectedItem);
         if (_tab == 0) HistoryTab.SetResourceReference(BackgroundProperty, "TabSurface"); else HistoryTab.Background = Brushes.Transparent;
@@ -84,6 +101,8 @@ public partial class MainWindow : Window
         SnippetsTab.FontWeight = _tab == 1 ? FontWeights.SemiBold : FontWeights.Normal;
         SnippetActions.Visibility = _tab == 1 ? Visibility.Visible : Visibility.Collapsed;
         EditButton.IsEnabled = rows.Count > 0;
+        HistoryToolbar.Visibility = _tab == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ClearHistoryButton.IsEnabled = !_busy && _app.HistoryStatus == HistoryStatus.Ready && rows.Count > 0;
         StatusLabel.Text = _tab == 0 ? _app.HistoryStatus switch
         {
             HistoryStatus.Loading => "正在读取…",
@@ -98,12 +117,14 @@ public partial class MainWindow : Window
 
     private void OnSystemSettings(object sender, RoutedEventArgs e) => _app.OpenSystemClipboardSettings();
 
-    private void SwitchTab(int tab) { Confirmation.Dismiss(); _tab = tab; RefreshRows(); Entries.Focus(); }
+    private void SwitchTab(int tab) { if (_busy) return; Confirmation.Dismiss(); _menuId = null; _tab = tab; RefreshRows(); Entries.Focus(); }
     private void OnHistoryTab(object sender, RoutedEventArgs e) => SwitchTab(0);
     private void OnSnippetsTab(object sender, RoutedEventArgs e) => SwitchTab(1);
     private async void OnKeyDown(object sender, KeyEventArgs e)
     {
         if (_busy) return;
+        if (e.Key == Key.Escape && _menuId.HasValue && !Confirmation.IsOpen)
+        { _menuId = null; RefreshRows(true); Entries.Focus(); e.Handled = true; return; }
         if (Confirmation.IsOpen)
         {
             if (e.Key == Key.Escape) { Confirmation.Dismiss(); Entries.Focus(); e.Handled = true; }
@@ -145,9 +166,53 @@ public partial class MainWindow : Window
     }
     private async void OnEntryClick(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source && FindButton(source)) return;
         if (ItemsControl.ContainerFromElement(Entries, e.OriginalSource as DependencyObject) is not ListBoxItem item) return;
         Entries.SelectedItem = item.DataContext; e.Handled = true;
         await PasteSelectedAsync();
+    }
+
+    private void OnMore(object sender, RoutedEventArgs e)
+    {
+        if (_busy || sender is not Button { DataContext: EntryRow row }) return;
+        Entries.SelectedItem = row;
+        if (_tab == 1) { EditSnippet(); return; }
+        Confirmation.Dismiss();
+        _menuId = _menuId == row.Id ? null : row.Id;
+        RefreshRows(true);
+    }
+    private void OnDeleteHistory(object sender, RoutedEventArgs e)
+    {
+        if (_busy || sender is not Button { DataContext: EntryRow row }) return;
+        Confirmation.Ask("从 Windows 历史删除此项？", "删除", async () =>
+        {
+            if (_busy) return;
+            _busy = true;
+            try
+            {
+                var deleted = await _app.DeleteSystemHistoryAsync(row.Id);
+                _menuId = null; RefreshRows(true);
+                if (!deleted) StatusLabel.Text = "删除失败，请重试";
+            }
+            finally { _busy = false; ClearHistoryButton.IsEnabled = _app.HistoryStatus == HistoryStatus.Ready && _app.History.Count > 0; }
+        });
+    }
+    private void OnClearHistory(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
+        _menuId = null; RefreshRows(true);
+        Confirmation.Ask("清空 Windows 剪贴板历史？\nWin+V 中的固定项会保留。", "清空", async () =>
+        {
+            if (_busy) return;
+            _busy = true;
+            try
+            {
+                var cleared = await _app.ClearSystemHistoryAsync();
+                RefreshRows();
+                if (!cleared) StatusLabel.Text = "清空失败，请重试";
+            }
+            finally { _busy = false; ClearHistoryButton.IsEnabled = _app.HistoryStatus == HistoryStatus.Ready && _app.History.Count > 0; }
+        });
     }
 
     private Task PasteSelectedAsync()
