@@ -10,7 +10,7 @@ using ClipTap.Views;
 
 namespace ClipTap;
 
-internal sealed record EntryRow(Guid Id, string Title, string Detail, bool Sensitive, bool Pinned)
+internal sealed record EntryRow(Guid Id, string Title, string Detail, bool Sensitive, bool Pinned, bool IsImage = false, ImageSource? Thumbnail = null)
 {
     public override string ToString() => Title;
 }
@@ -73,7 +73,7 @@ public partial class MainWindow : Window
     {
         var selected = preserveSelection ? (Entries.SelectedItem as EntryRow)?.Id : null;
         var rows = _tab == 0
-            ? _app.History.Select(c => new EntryRow(c.Id, Library.Preview(c.Text), c.CopiedAt.ToLocalTime().ToString("HH:mm"), false, false)).ToList()
+            ? _app.History.Select(c => new EntryRow(c.Id, c.IsImage ? "图片" : Library.Preview(c.Text), c.CopiedAt.ToLocalTime().ToString("HH:mm"), false, false, c.IsImage, c.Thumbnail)).ToList()
             : _app.Library.OrderedSnippets().Select(s => new EntryRow(s.Id, s.Title, "", s.IsSensitive, s.IsPinned)).ToList();
         Entries.ItemsSource = rows;
         Entries.SelectedItem = rows.FirstOrDefault(r => r.Id == selected) ?? rows.FirstOrDefault();
@@ -170,7 +170,8 @@ public partial class MainWindow : Window
         _busy = true;
         try
         {
-            if (!await _app.ClipboardService.WriteAsync(value, row.Sensitive)) { StatusLabel.Text = "剪贴板忙，请重试"; return; }
+            var copied = row.IsImage ? await _app.RestoreHistoryImageAsync(row.Id) : await _app.ClipboardService.WriteAsync(value, row.Sensitive);
+            if (!copied) { StatusLabel.Text = row.IsImage ? "图片已失效或剪贴板忙" : "剪贴板忙，请重试"; return; }
             Hide();
             if (!await PasteService.PasteAsync(target)) _app.Notify("已复制 · Ctrl+V 粘贴");
         }

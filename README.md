@@ -15,7 +15,7 @@
 ## 使用
 
 1. 在 Windows 设置 → 系统 → 剪贴板中开启「剪贴板历史记录」（也可通过 `Win+V` 开启）。
-2. 启动 `ClipTap.exe`，程序驻留托盘；列表直接读取 Windows 已有的文本历史，复制、删除、保留策略由系统管理。
+2. 启动 `ClipTap.exe`，程序驻留托盘；列表直接读取 Windows 已有的文本和图片历史，复制、删除、保留策略由系统管理。
 3. 在输入框中按 `Alt+空格` 唤起，选中内容并按回车或单击。
 4. `→` 打开快捷片段，点击右下角「＋」保存标题与内容；`F2` 或编辑图标编辑选中片段。
 5. 按住顶部图标、标题或空白区域可以拖动浮窗。列表中 `Esc` 收起；编辑/设置中 `Esc` 或左上角返回列表。点击外部暂时收起，重新唤起会保留编辑草稿。右键托盘可打开 Windows 剪贴板设置、ClipTap 设置或退出。
@@ -36,7 +36,8 @@
 ## 数据与敏感片段
 
 - 剪贴板历史以 **Windows / Win+V 为唯一数据源**，唤起及系统历史变化时刷新；不自行采集、去重或长期保存。历史未开启或不可访问时显示状态和系统设置入口。
-- 当前只展示系统历史中的文本，图片/文件不展示；文本历史不套用 ClipTap 的片段长度限制。清空调用 Windows 接口，影响 Win+V，系统固定项保留。
+- 展示文本和图片，图片带缩略图，暂不展示文件。选中图片后由 Windows 恢复原始历史内容再发送粘贴，缩略图不会替代原图；目标应用需要支持图片粘贴。文本历史不套用 ClipTap 的片段长度限制。清空调用 Windows 接口，影响 Win+V，系统固定项保留。
+- 缩略图只存内存，最多 160×96 像素；读取超时或预览失败时保留图片条目。原记录已删除或无法恢复时显示简短错误，不发送粘贴。
 - 快捷片段和外观设置存于 `%LOCALAPPDATA%\ClipTap\library.dat`，使用 Windows DPAPI 加密，绑定当前 Windows 用户。旧版已经保存的本地历史保留在原库中以兼容升级，但不再显示，也不会导入新系统历史。
 - 最多 500 个快捷片段，单个片段最多 20,000 字符。
 - 列表仅显示片段标题和状态。敏感内容在编辑器中默认遮蔽，使用前会确认。
@@ -72,7 +73,7 @@ powershell -ExecutionPolicy Bypass -File scripts/publish.ps1 -SelfContained
 
 测试宿主不引入外部测试框架，失败返回非零退出码。覆盖系统历史快照替换、删除同步、禁用/拒绝访问、旧请求竞争、敏感值过滤、DPAPI 往返与损坏检测、WPF 导航与编辑器遮蔽；测试使用隔离数据，不清空真实系统历史。测试截图保存在 `artifacts/test-results/`。
 
-可选只读原生探测：`dotnet run --project tests/ClipTap.Tests -c Release -- --system-history`，仅打印状态和文本条数，不输出剪贴板内容。原生接入使用 Microsoft 的 [GetHistoryItemsAsync](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.datatransfer.clipboard.gethistoryitemsasync) 和 [ClearHistory](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.datatransfer.clipboard.clearhistory) 接口。
+可选只读原生探测：`dotnet run --project tests/ClipTap.Tests -c Release -- --system-history`，仅打印状态和文本/图片条数，不输出剪贴板内容。原生接入使用 Microsoft 的 [GetHistoryItemsAsync](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.datatransfer.clipboard.gethistoryitemsasync)、[ClearHistory](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.datatransfer.clipboard.clearhistory) 和 [SetHistoryItemAsContent](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.datatransfer.clipboard.sethistoryitemascontent) 接口。
 
 可选的跨进程粘贴测试会打开专用测试输入窗口，临时写入测试剪贴板并在未被外部更新时恢复备份。运行时请让测试窗口保持前台：
 
@@ -84,7 +85,7 @@ CI 执行默认测试，交互桌面的跨应用粘贴需要在真实环境另�
 
 ## 已知边界与后续
 
-- 尚未实现 `!hzpass` 一类触发词展开、图片/文件历史、搜索、云同步和自定义快捷键。
+- 尚未实现 `!hzpass` 一类触发词展开、文件历史、搜索、云同步和自定义快捷键。
 - 默认快捷键被其他应用占用时，会提示改用托盘。
 - Windows 可能阻止向管理员窗口发送输入；当前版本不请求管理员权限。
 - 不同应用对 Ctrl+V、输入焦点的处理不同；多屏不同缩放、终端、浏览器和远程桌面仍需进一步兼容性验证。

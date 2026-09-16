@@ -60,10 +60,15 @@
                 <Path Width="17" Height="19" Stretch="Uniform" Stroke="{DynamicResource Accent}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center" HorizontalAlignment="Left">
                   <Path.Style><Style TargetType="Path">
                     <Setter Property="Data" Value="M5,2 L13,2 L17,6 L17,20 L3,20 L3,2 Z M7,9 L13,9 M7,13 L13,13" />
-                    <Style.Triggers><DataTrigger Binding="{Binding Sensitive}" Value="True"><Setter Property="Data" Value="M5,9 L5,6 A5,5 0 0 1 15,6 L15,9 M3,9 L17,9 L17,20 L3,20 Z M10,13 L10,16" /></DataTrigger></Style.Triggers>
+                    <Style.Triggers><DataTrigger Binding="{Binding Sensitive}" Value="True"><Setter Property="Data" Value="M5,9 L5,6 A5,5 0 0 1 15,6 L15,9 M3,9 L17,9 L17,20 L3,20 Z M10,13 L10,16" /></DataTrigger><DataTrigger Binding="{Binding IsImage}" Value="True"><Setter Property="Data" Value="M2,3 L18,3 L18,19 L2,19 Z M2,16 L7,10 L12,15 L15,12 L18,16 M12,7 L14,7" /></DataTrigger></Style.Triggers>
                   </Style></Path.Style>
                 </Path>
-                <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                  <Image Source="{Binding Thumbnail}" MaxWidth="160" Height="80" Stretch="Uniform" HorizontalAlignment="Left" Margin="0,0,0,6">
+                    <Image.Style><Style TargetType="Image"><Style.Triggers><DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Image.Style>
+                  </Image>
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="13" />
+                </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                   <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource Muted}" FontSize="10" VerticalAlignment="Center" />
                   <Ellipse Width="5" Height="5" Fill="{DynamicResource Accent}" Margin="5,0,0,0"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Pinned}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse>

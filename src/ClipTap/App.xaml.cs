@@ -23,15 +23,16 @@ public partial class App : System.Windows.Application
     private bool _ownsMutex;
     private bool _dirty;
     private MainWindow? _panel;
+    private readonly bool _testHost;
     internal Library Library { get; set; } = null!;
     internal ClipboardService ClipboardService => _clipboard!;
     internal bool IsQuitting { get; private set; }
     internal bool HotkeyAvailable => _events?.HotkeyAvailable ?? true;
     internal HistoryStatus HistoryStatus => _history?.Snapshot.Status ?? HistoryStatus.Unavailable;
-    internal IReadOnlyList<ClipEntry> History => (_history?.Snapshot.Items ?? [])
-        .Where(c => !Library.State.Snippets.Any(s => s.IsSensitive && s.Value == c.Text)).ToArray();
+    internal IReadOnlyList<HistoryEntry> History => (_history?.Snapshot.Items ?? [])
+        .Where(c => c.IsImage || !Library.State.Snippets.Any(s => s.IsSensitive && s.Value == c.Text)).ToArray();
     public App() { }
-    internal App(EncryptedStore store, ISystemHistorySource history) { _store = store; InitializeHistory(history); }
+    internal App(EncryptedStore store, ISystemHistorySource history) { _testHost = true; _store = store; InitializeHistory(history); }
     private MainWindow Panel
     {
         get
@@ -43,6 +44,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (_testHost) return; // Pumping async UI tests must not start the tray or open the user's library.
         base.OnStartup(e);
         _instance = new Mutex(true, @"Local\ClipTap." + Environment.UserName, out _ownsMutex);
         if (!_ownsMutex)
@@ -134,6 +136,7 @@ public partial class App : System.Windows.Application
         return _history.RefreshAsync();
     }
     internal Task<bool> ClearSystemHistoryAsync() => _history?.ClearAsync() ?? Task.FromResult(false);
+    internal Task<bool> RestoreHistoryImageAsync(Guid id) => _history?.RestoreImageAsync(id) ?? Task.FromResult(false);
     internal bool OpenSystemClipboardSettings()
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:clipboard") { UseShellExecute = true }); return true; }

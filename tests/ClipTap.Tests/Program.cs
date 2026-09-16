@@ -126,7 +126,7 @@ internal static class Program
                 new(Guid.NewGuid(), "让常用内容，随取随贴。", Now.AddSeconds(2)),
                 new(Guid.NewGuid(), "https://github.com/langji3/cliptap", Now.AddSeconds(1)),
                 new(Guid.NewGuid(), "欢迎使用 ClipTap", Now)]);
-            historySource.Snapshot = new(HistoryStatus.Ready, app.Library.State.History.ToArray());
+            historySource.Snapshot = new(HistoryStatus.Ready, app.Library.State.History.Select(c => (HistoryEntry)c).ToArray());
             Await(app.RefreshSystemHistoryAsync());
             app.Library.SaveSnippet(Snippet("常用邮箱", "hello@example.com", pinned: true));
             app.Library.SaveSnippet(Snippet("测试数据库密码", "never-visible-in-row", sensitive: true));
@@ -321,12 +321,58 @@ internal static class Program
             source.ClearResult = false;
             var clear = history.ClearAsync(); Await(clear); Check(!clear.Result);
         });
+        BitmapSource? imagePreview = null;
+        Test("Images: native decoder bounds wide/tall thumbnails and handles alpha", () =>
+        {
+            foreach (var (width, height) in new[] { (1200, 600), (4, 400), (1, 1) })
+            {
+                var pixels = new byte[width * height * 4];
+                for (var i = 0; i < pixels.Length; i += 4)
+                { pixels[i] = 180; pixels[i + 1] = 120; pixels[i + 2] = 40; pixels[i + 3] = width == 1 ? (byte)128 : (byte)255; }
+                var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+                var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var memory = new MemoryStream(); encoder.Save(memory); memory.Position = 0;
+                using var stream = memory.AsRandomAccessStream();
+                var decode = WindowsHistorySource.DecodeThumbnailAsync(stream); Await(decode);
+                var thumbnail = decode.Result;
+                Check(thumbnail.IsFrozen); Check(thumbnail.PixelWidth <= 160 && thumbnail.PixelHeight <= 96);
+                Check(thumbnail.PixelWidth > 0 && thumbnail.PixelHeight > 0);
+                if (width == 1) { var pixel = new byte[4]; thumbnail.CopyPixels(pixel, 4, 0); Equal((byte)128, pixel[3]); Check(pixel[0] <= 91); }
+                if (width == 1200) { Equal(160, thumbnail.PixelWidth); Equal(80, thumbnail.PixelHeight); imagePreview = thumbnail; }
+            }
+        });
+        Test("Images: mixed rows, missing preview, restore original identity and expired-item failure", () =>
+        {
+            Check(imagePreview is not null);
+            var imageId = Guid.NewGuid();
+            historySource.Snapshot = new(HistoryStatus.Ready, [
+                new(imageId, "", Now, true, imagePreview),
+                new(Guid.NewGuid(), "文字与图片共用 Windows 历史", Now),
+                new(Guid.NewGuid(), "", Now, true)]);
+            panel.OpenPanel(false); panel.RefreshRows();
+            var list = (ListBox)panel.FindName("Entries"); var rows = list.Items.Cast<EntryRow>().ToArray();
+            Equal(3, rows.Length); Check(rows[0].IsImage && rows[0].Thumbnail is not null);
+            Check(!rows[1].IsImage); Check(rows[2].IsImage && rows[2].Thumbnail is null);
+            ThemeService.ApplyTheme(AppearanceMode.Light, AccentPalette.Blue);
+            Render(panel, Path.Combine(artifactDirectory, "images-light.png"));
+            ThemeService.ApplyTheme(AppearanceMode.Dark, AccentPalette.Purple);
+            Render(panel, Path.Combine(artifactDirectory, "images-dark.png"));
+            historySource.RestoreResult = false; list.Focus(); SendKey(panel, Key.Enter);
+            Equal<Guid?>(imageId, historySource.RestoredImage); Check(panel.IsVisible);
+            Equal("图片已失效或剪贴板忙", ((TextBlock)panel.FindName("StatusLabel")).Text);
+            historySource.RestoreResult = true; SendKey(panel, Key.Enter); Check(!panel.IsVisible);
+            using var snapshot = new SystemHistoryService(historySource);
+            Await(snapshot.RefreshAsync());
+            historySource.Snapshot = new(HistoryStatus.Ready, []);
+            var restore = snapshot.RestoreImageAsync(imageId); Await(restore); Check(!restore.Result);
+            Check(app.Library.State.History.All(i => i.Id != imageId));
+        });
         if (args.Contains("--system-history"))
             Test("Windows native history: read-only API probe (contents not logged)", () =>
             {
                 using var native = new WindowsHistorySource();
                 var read = native.ReadAsync(); Await(read);
-                Console.WriteLine($"  Windows history status: {read.Result.Status}; text items: {read.Result.Items.Count}");
+                Console.WriteLine($"  Windows history status: {read.Result.Status}; text: {read.Result.Items.Count(i => !i.IsImage)}; images: {read.Result.Items.Count(i => i.IsImage)}");
                 Check(Enum.IsDefined(read.Result.Status));
             });
         Directory.Delete(uiDirectory, recursive: true);
@@ -404,6 +450,9 @@ internal sealed class FakeHistorySource : ISystemHistorySource
     internal Func<Task<HistorySnapshot>>? Read { get; set; }
     internal int ClearCalls { get; private set; }
     internal bool ClearResult { get; set; } = true;
+    internal Guid? RestoredImage { get; private set; }
+    internal bool RestoreResult { get; set; } = true;
+    public Task<bool> RestoreImageAsync(Guid id) { RestoredImage = id; return Task.FromResult(RestoreResult && Snapshot.Items.Any(i => i.Id == id && i.IsImage)); }
     public Task<HistorySnapshot> ReadAsync() => Read?.Invoke() ?? Task.FromResult(Snapshot);
     public bool Clear()
     {
