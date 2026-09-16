@@ -12,6 +12,7 @@ using System.Windows.Threading;
 using ClipTap;
 using ClipTap.Core;
 using ClipTap.Services;
+using ClipTap.Views;
 
 internal static class Program
 {
@@ -130,13 +131,16 @@ internal static class Program
             Equal(1, hotkeys); Equal(1, copies);
         });
 
-        var app = new App { Library = NewLibrary() };
+        var uiDirectory = Path.Combine(Path.GetTempPath(), "ClipTap.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(uiDirectory);
+        var app = new App(new EncryptedStore(uiDirectory)) { Library = NewLibrary() };
         app.InitializeComponent();
         ThemeService.ApplyTheme(AppearanceMode.Light);
         var panel = new MainWindow(app);
         Test("UI: empty state and clipboard default", () =>
         {
-            Equal("从一次复制开始", ((TextBlock)panel.FindName("EmptyTitle")).Text);
+            Equal("Alt+空格唤醒", ((TextBlock)panel.FindName("StatusLabel")).Text);
+            Equal(0, ((ListBox)panel.FindName("Entries")).Items.Count);
             Equal(Visibility.Collapsed, ((StackPanel)panel.FindName("SnippetActions")).Visibility);
         });
         var artifactDirectory = Path.GetFullPath(args.FirstOrDefault(a => !a.StartsWith("--")) ?? "artifacts/test-results");
@@ -168,12 +172,12 @@ internal static class Program
         });
         Test("UI: sensitive editor keeps content masked and preserves reveal toggles", () =>
         {
-            var editor = new SnippetWindow(Snippet("Password", "multiline\nsecret", sensitive: true));
+            var editor = new SnippetView(app, Snippet("Password", "multiline\nsecret", sensitive: true));
             var plain = (TextBox)editor.FindName("ValueInput"); var secret = (PasswordBox)editor.FindName("SecretInput");
             Equal(Visibility.Collapsed, plain.Visibility); Equal("", plain.Text); Equal("multiline\nsecret", secret.Password);
             ((CheckBox)editor.FindName("RevealInput")).IsChecked = true; Equal("multiline\nsecret", plain.Text); Equal("", secret.Password);
             ((CheckBox)editor.FindName("RevealInput")).IsChecked = false; Equal("", plain.Text); Equal("multiline\nsecret", secret.Password);
-            editor.Close();
+            editor.Discard(); Equal("", secret.Password); Equal("", plain.Text);
         });
         Test("Theme: dark/light updates existing controls and settings preview cancels cleanly", () =>
         {
@@ -189,16 +193,21 @@ internal static class Program
             Render(panel, Path.Combine(artifactDirectory, "snippets-dark.png"));
             SendKey(panel, Key.Left);
             Render(panel, Path.Combine(artifactDirectory, "clipboard-dark.png"));
-            var editor = new SnippetWindow(Snippet("测试数据库密码", "fixture-secret", sensitive: true));
-            editor.Show(); Render(editor, Path.Combine(artifactDirectory, "editor-dark.png")); editor.Close();
+            SendKey(panel, Key.Right);
+            ((ListBox)panel.FindName("Entries")).SelectedIndex = 1;
+            Click(panel, "EditButton");
+            Render(panel, Path.Combine(artifactDirectory, "editor-dark.png"));
+            Click(panel, "BackButton"); SendKey(panel, Key.Left);
             app.Library.State.Settings.Theme = AppearanceMode.Dark;
-            var settings = new SettingsWindow(app);
-            settings.Show(); Render(settings, Path.Combine(artifactDirectory, "settings-dark.png"));
-            ((ComboBox)settings.FindName("AccentInput")).SelectedIndex = (int)AccentPalette.Purple;
+            panel.ShowSettings();
+            var settings = (SettingsView)((ContentControl)panel.FindName("PageHost")).Content;
+            Render(panel, Path.Combine(artifactDirectory, "settings-dark.png"));
+            ((RadioButton)settings.FindName("PurpleAccent")).IsChecked = true;
             Equal((Color)ColorConverter.ConvertFromString("#C0A3ED"), ((SolidColorBrush)app.Resources["Accent"]).Color);
-            ((ComboBox)settings.FindName("ThemeInput")).SelectedIndex = (int)AppearanceMode.Light;
+            ((ComboBox)settings.FindName("ThemeInput")).SelectedValue = AppearanceMode.Light;
             Check(((SolidColorBrush)panel.Background).Color.R > 128);
-            settings.Close();
+            Render(panel, Path.Combine(artifactDirectory, "settings-light.png"));
+            Click(panel, "BackButton");
             Check(((SolidColorBrush)panel.Background).Color.R < 128);
             Equal(AppearanceMode.Dark, app.Library.State.Settings.Theme);
             Equal(AccentPalette.Green, app.Library.State.Settings.Accent);
@@ -238,12 +247,67 @@ internal static class Program
             panel.Hide();
         });
         panel.Hide();
+        Test("Navigation: editor stays in one window, preserves drafts, and saves inline", () =>
+        {
+            panel.OpenPanel(false); SendKey(panel, Key.Right);
+            var windows = app.Windows.Count;
+            Click(panel, "NewButton"); panel.UpdateLayout();
+            var host = (ContentControl)panel.FindName("PageHost");
+            var editor = (SnippetView)host.Content;
+            Equal(windows, app.Windows.Count);
+            ((TextBox)editor.FindName("TitleInput")).Text = "Inline test";
+            var value = (TextBox)editor.FindName("ValueInput"); value.Text = "line one\nline two"; value.Focus();
+            var key = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(panel), 0, Key.Enter) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+            panel.RaiseEvent(key); Check(!key.Handled); Equal<object>(editor, host.Content);
+            SendKey(panel, Key.Left); Equal<object>(editor, host.Content);
+            panel.Hide(); panel.OpenPanel(false); Equal<object>(editor, host.Content); Equal("line one\nline two", value.Text);
+            Render(panel, Path.Combine(artifactDirectory, "editor-light.png"));
+            Click(editor, "SaveButton"); Check(host.Content is null);
+            Check(app.Library.State.Snippets.Any(s => s.Title == "Inline test")); Equal(windows, app.Windows.Count);
+            var entries = (ListBox)panel.FindName("Entries");
+            entries.SelectedItem = entries.Items.Cast<EntryRow>().Single(r => r.Title == "Inline test");
+            Click(panel, "EditButton"); editor = (SnippetView)host.Content!;
+            Click(editor, "DeleteButton");
+            var confirm = (InlineConfirmation)editor.FindName("Confirmation"); Check(confirm.IsOpen);
+            Render(panel, Path.Combine(artifactDirectory, "delete-inline.png"));
+            SendKey(panel, Key.Escape); Check(!confirm.IsOpen); Equal<object>(editor, host.Content!);
+            Click(editor, "DeleteButton"); panel.Hide(); panel.OpenPanel(false);
+            Check(!confirm.IsOpen); Equal<object>(editor, host.Content!);
+            Click(editor, "DeleteButton"); Click(confirm, "ConfirmButton"); Check(host.Content is null);
+            Check(!app.Library.State.Snippets.Any(s => s.Title == "Inline test"));
+            panel.ShowSettings(); var settings = (SettingsView)host.Content!;
+            Click(settings, "ClearButton"); var clear = (InlineConfirmation)settings.FindName("Confirmation");
+            Click(clear, "CancelButton"); Equal(3, app.Library.State.History.Count);
+            Click(settings, "ClearButton"); Click(clear, "ConfirmButton"); Equal(0, app.Library.State.History.Count);
+            SendKey(panel, Key.Escape); Check(host.Content is null); Equal(windows, app.Windows.Count);
+        });
+        Test("Navigation: failed save retains editor draft and committed data", () =>
+        {
+            File.Delete(Path.Combine(uiDirectory, "library.dat")); Directory.Delete(uiDirectory);
+            File.WriteAllText(uiDirectory, "block storage for this test");
+            try
+            {
+                Click(panel, "NewButton");
+                var host = (ContentControl)panel.FindName("PageHost"); var editor = (SnippetView)host.Content;
+                ((TextBox)editor.FindName("TitleInput")).Text = "Unsaved";
+                ((TextBox)editor.FindName("ValueInput")).Text = "Keep this draft";
+                Click(editor, "SaveButton"); Equal<object>(editor, host.Content);
+                Check(!app.Library.State.Snippets.Any(s => s.Title == "Unsaved"));
+                Equal("Keep this draft", ((TextBox)editor.FindName("ValueInput")).Text);
+                Check(((TextBlock)editor.FindName("ErrorLabel")).Text.Length > 0);
+                SendKey(panel, Key.Escape); Check(host.Content is null);
+            }
+            finally { File.Delete(uiDirectory); Directory.CreateDirectory(uiDirectory); }
+        });
+        panel.Hide();
+        Directory.Delete(uiDirectory, recursive: true);
         if (args.Contains("--integration"))
             Test("Cross-process: restore a real input focus and paste; ignore own clipboard writes", PasteIntegration.Verify);
         Console.WriteLine($"\n{_passed} passed, {_failed} failed. Screenshots: {artifactDirectory}");
         return _failed == 0 ? 0 : 1;
     }
 
+    private static void Click(FrameworkElement parent, string name) => ((Button)parent.FindName(name)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Render(Window window, string path)
     {
         window.UpdateLayout();

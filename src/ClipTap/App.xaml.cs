@@ -26,6 +26,8 @@ public partial class App : System.Windows.Application
     internal ClipboardService ClipboardService => _clipboard!;
     internal bool IsQuitting { get; private set; }
     internal bool HotkeyAvailable => _events?.HotkeyAvailable ?? true;
+    public App() { }
+    internal App(EncryptedStore store) => _store = store;
     private MainWindow Panel
     {
         get
@@ -137,8 +139,17 @@ public partial class App : System.Windows.Application
     }
 
     internal bool TrySaveSettings(AppSettings settings)
+        => TryCommit(Library.WithSettings(settings));
+
+    internal bool TryUpdateLibrary(Action<Library> update)
     {
-        var candidate = Library.WithSettings(settings);
+        var candidate = Library.WithSettings(Library.State.Settings);
+        update(candidate);
+        return TryCommit(candidate);
+    }
+
+    private bool TryCommit(Library candidate)
+    {
         try
         {
             _store!.Save(candidate.State);
@@ -153,7 +164,16 @@ public partial class App : System.Windows.Application
 
     internal void Quit()
     {
-        if (!SaveNow() && MessageBox.Show("有更改未能保存。仍要退出吗？", "ClipTap", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (!SaveNow())
+        {
+            Panel.OpenPanel(captureTarget: false);
+            Panel.ConfirmExit(ExitNow);
+            return;
+        }
+        ExitNow();
+    }
+    private void ExitNow()
+    {
         IsQuitting = true;
         Shutdown();
     }
