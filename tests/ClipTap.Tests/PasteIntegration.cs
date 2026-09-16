@@ -80,10 +80,7 @@ internal static class PasteIntegration
             const string payload = "ClipTap 验证 ✓";
             if (!await clipboard.WriteAsync(payload, sensitive: false)) throw new InvalidOperationException("Clipboard busy");
             writtenSequence = NativeMethods.GetClipboardSequenceNumber();
-            string? captured = null;
-            clipboard.TextCaptured += text => captured = text;
-            clipboard.OnChanged(); await Task.Delay(150);
-            if (captured is not null) throw new InvalidOperationException("Own clipboard writes were captured");
+            if (Clipboard.GetText() != payload) throw new InvalidOperationException("Clipboard write did not match");
             if (!await PasteService.PasteAsync(target)) throw new InvalidOperationException("Paste was not sent to test input");
             await Task.Delay(200);
             await writer.WriteLineAsync("read");
@@ -92,10 +89,6 @@ internal static class PasteIntegration
             await process.WaitForExitAsync(timeout.Token);
             if (await PasteService.PasteAsync(target)) throw new InvalidOperationException("Destroyed window was accepted");
             if (await PasteService.PasteAsync(null)) throw new InvalidOperationException("Null target was accepted");
-            Clipboard.SetText("ClipTap listener fixture");
-            writtenSequence = NativeMethods.GetClipboardSequenceNumber();
-            clipboard.OnChanged(); await Task.Delay(180);
-            if (captured != "ClipTap listener fixture") throw new InvalidOperationException("External text was not captured");
         }
         finally
         {

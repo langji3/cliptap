@@ -28,10 +28,9 @@
           </StackPanel>
         </Grid>
         <Border Height="1" Background="{DynamicResource Line}" Margin="0,0,0,18" />
-        <Grid Margin="0,0,0,16"><TextBlock Text="历史条数" VerticalAlignment="Center" /><ComboBox x:Name="LimitInput" Width="96" Height="34" HorizontalAlignment="Right" AutomationProperties.Name="历史条数" /></Grid>
         <CheckBox x:Name="StartupInput" Content="开机启动" Margin="0,6,0,14" />
-        <CheckBox x:Name="PauseInput" Content="暂停记录" Margin="0,6,0,18" />
-        <Button x:Name="ClearButton" Content="清空历史" HorizontalAlignment="Left" Background="Transparent" Foreground="{DynamicResource Danger}" Padding="0,8" Click="OnClear" />
+        <Button Content="Windows 剪贴板设置" HorizontalAlignment="Left" Background="Transparent" Padding="0,8" Margin="0,0,0,10" Click="OnSystemSettings" />
+        <Button x:Name="ClearButton" Content="清空 Windows 历史" HorizontalAlignment="Left" Background="Transparent" Foreground="{DynamicResource Danger}" Padding="0,8" Click="OnClear" />
       </StackPanel>
     </ScrollViewer>
     <TextBlock x:Name="ErrorLabel" Grid.Row="1" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,8,0,4" />

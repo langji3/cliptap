@@ -74,6 +74,7 @@
         </Grid>
         <Grid Grid.Row="2" Margin="22,0,22,8">
           <TextBlock x:Name="StatusLabel" Text="Alt+空格唤醒" FontSize="11" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+          <Button x:Name="SystemSettingsButton" Content="打开设置" Visibility="Collapsed" HorizontalAlignment="Right" Padding="10,6" Background="Transparent" Foreground="{DynamicResource Accent}" Click="OnSystemSettings" />
           <StackPanel x:Name="SnippetActions" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="EditButton" Style="{StaticResource IconButton}" ToolTip="编辑 · F2" AutomationProperties.Name="编辑片段" Click="OnEdit" Margin="0,0,4,0">
               <Path Data="M4,15 L4,20 L9,20 L20,9 L15,4 Z M13,6 L18,11" Width="17" Height="17" Stretch="Uniform" Stroke="{DynamicResource Muted}" StrokeThickness="1.5" StrokeLineJoin="Round" />

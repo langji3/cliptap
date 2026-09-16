@@ -14,33 +14,12 @@ public sealed class Library
         State = state;
         if (!Enum.IsDefined(State.Settings.Theme)) State.Settings.Theme = AppearanceMode.Light;
         if (!Enum.IsDefined(State.Settings.Accent)) State.Settings.Accent = AccentPalette.Green;
-        State.Settings.HistoryLimit = Math.Clamp(State.Settings.HistoryLimit, 20, 500);
         State.Snippets = state.Snippets
             .Where(s => s is not null && !string.IsNullOrWhiteSpace(s.Title) && s.Value is not null)
             .DistinctBy(s => s.Id).Take(MaxSnippets).ToList();
-        State.History = state.History
-            .Where(c => c is not null && !string.IsNullOrWhiteSpace(c.Text) && c.Text.Length <= MaxTextLength)
-            .OrderByDescending(c => c.CopiedAt).DistinctBy(c => c.Text, StringComparer.Ordinal)
-            .Take(State.Settings.HistoryLimit).ToList();
+        // Legacy history is retained for compatibility only; the UI reads Windows history directly.
+        State.History = state.History.Where(c => c is not null && c.Text is not null).ToList();
         RemoveSensitiveHistory();
-    }
-
-    public bool Capture(string? text, DateTimeOffset now)
-    {
-        if (State.Settings.CapturePaused || string.IsNullOrWhiteSpace(text) || text.Length > MaxTextLength)
-            return false;
-        if (State.Snippets.Any(s => s.IsSensitive && s.Value == text))
-            return false;
-        State.History.RemoveAll(c => c.Text == text);
-        State.History.Insert(0, new ClipEntry(Guid.NewGuid(), text, now));
-        TrimHistory();
-        return true;
-    }
-
-    public void SetHistoryLimit(int limit)
-    {
-        State.Settings.HistoryLimit = Math.Clamp(limit, 20, 500);
-        TrimHistory();
     }
 
     public Library WithSettings(AppSettings settings) => new(new AppState
@@ -56,12 +35,6 @@ public sealed class Library
         History = [.. State.History],
         Snippets = [.. State.Snippets]
     });
-
-    private void TrimHistory()
-    {
-        if (State.History.Count > State.Settings.HistoryLimit)
-            State.History.RemoveRange(State.Settings.HistoryLimit, State.History.Count - State.Settings.HistoryLimit);
-    }
 
     public void SaveSnippet(Snippet snippet)
     {

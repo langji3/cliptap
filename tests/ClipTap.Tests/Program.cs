@@ -23,45 +23,19 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length == 2 && args[0] == "--paste-fixture") return PasteIntegration.RunFixture(args[1]);
-        Test("History: exact deduplication moves a copy to the front", () =>
+        Test("Sensitive snippets purge matching legacy history", () =>
         {
-            var library = NewLibrary();
-            library.Capture(" first ", Now); library.Capture("second", Now.AddSeconds(1)); library.Capture(" first ", Now.AddSeconds(2));
-            Equal(2, library.State.History.Count); Equal(" first ", library.State.History[0].Text);
-            library.Capture("first", Now.AddSeconds(3)); Equal(3, library.State.History.Count);
-        });
-        Test("History: blank, oversized and paused captures are ignored", () =>
-        {
-            var library = NewLibrary();
-            Check(!library.Capture(null, Now)); Check(!library.Capture(" \r\n", Now));
-            Check(!library.Capture(new string('x', Library.MaxTextLength + 1), Now));
-            Check(library.Capture(new string('x', Library.MaxTextLength), Now));
-            library.State.Settings.CapturePaused = true; Check(!library.Capture("ignored", Now));
-            Equal(1, library.State.History.Count);
-        });
-        Test("History: bounded retention preserves newest entries", () =>
-        {
-            var library = NewLibrary(); library.SetHistoryLimit(20);
-            for (var i = 0; i < 30; i++) library.Capture($"item-{i}", Now.AddSeconds(i));
-            Equal(20, library.State.History.Count); Equal("item-29", library.State.History[0].Text);
-            Equal("item-10", library.State.History[^1].Text);
-            library.SetHistoryLimit(-1); Equal(20, library.State.Settings.HistoryLimit);
-            library.SetHistoryLimit(9999); Equal(500, library.State.Settings.HistoryLimit);
-        });
-        Test("Sensitive snippets purge matching history and block recapture", () =>
-        {
-            var library = NewLibrary(); library.Capture("secret-value", Now);
+            var library = NewLibrary(); library.State.History.Add(new(Guid.NewGuid(), "secret-value", Now));
             library.SaveSnippet(Snippet("Production password", "secret-value", sensitive: true));
-            Equal(0, library.State.History.Count); Check(!library.Capture("secret-value", Now));
-            Check(library.Capture("ordinary", Now));
+            Equal(0, library.State.History.Count);
             Equal("Production password", library.OrderedSnippets().Single().Title);
         });
-        Test("Settings: preparing a smaller limit does not trim live history before save", () =>
+        Test("Settings: candidate state preserves legacy data without managing retention", () =>
         {
             var library = NewLibrary();
-            for (var i = 0; i < 40; i++) library.Capture($"item-{i}", Now.AddSeconds(i));
+            for (var i = 0; i < 40; i++) library.State.History.Add(new(Guid.NewGuid(), $"item-{i}", Now.AddSeconds(i)));
             var candidate = library.WithSettings(new AppSettings { HistoryLimit = 20, CapturePaused = true, Theme = AppearanceMode.Dark, Accent = AccentPalette.Purple });
-            Equal(20, candidate.State.History.Count); Equal(40, library.State.History.Count);
+            Equal(40, candidate.State.History.Count); Equal(40, library.State.History.Count);
             Equal(100, library.State.Settings.HistoryLimit); Check(!library.State.Settings.CapturePaused);
             Equal(AppearanceMode.Light, library.State.Settings.Theme);
             Equal(AccentPalette.Purple, candidate.State.Settings.Accent); Equal(AccentPalette.Green, library.State.Settings.Accent);
@@ -78,7 +52,7 @@ internal static class Program
         Test("Loaded state is normalized and unknown versions fail closed", () =>
         {
             var state = new AppState { History = [new(Guid.NewGuid(), "same", Now), new(Guid.NewGuid(), "same", Now.AddDays(1))] };
-            Equal(1, new Library(state).State.History.Count);
+            Equal(2, new Library(state).State.History.Count);
             Throws<InvalidDataException>(() => new Library(new AppState { Version = 999 }));
         });
         Test("Preview handles multiline text without modifying stored value", () =>
@@ -123,18 +97,19 @@ internal static class Program
         });
         Test("Background: native message window routes events without a WPF panel", () =>
         {
-            var hotkeys = 0; var copies = 0;
-            using var events = new DesktopEvents(() => hotkeys++, () => copies++);
+            var hotkeys = 0;
+            using var events = new DesktopEvents(() => hotkeys++);
             Console.WriteLine($"  Alt+Space registration available: {events.HotkeyAvailable}");
             SendMessage(events.Handle, NativeMethods.WmHotkey, NativeMethods.HotkeyId, nint.Zero);
-            SendMessage(events.Handle, NativeMethods.WmClipboardUpdate, nint.Zero, nint.Zero);
-            Equal(1, hotkeys); Equal(1, copies);
+            Equal(1, hotkeys);
         });
 
         var uiDirectory = Path.Combine(Path.GetTempPath(), "ClipTap.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(uiDirectory);
-        var app = new App(new EncryptedStore(uiDirectory)) { Library = NewLibrary() };
+        var historySource = new FakeHistorySource();
+        var app = new App(new EncryptedStore(uiDirectory), historySource) { Library = NewLibrary() };
         app.InitializeComponent();
+        Await(app.RefreshSystemHistoryAsync());
         ThemeService.ApplyTheme(AppearanceMode.Light);
         var panel = new MainWindow(app);
         Test("UI: empty state and clipboard default", () =>
@@ -147,9 +122,12 @@ internal static class Program
         Directory.CreateDirectory(artifactDirectory);
         Test("UI: arrows switch tabs, clamp selection and preserve secret titles", () =>
         {
-            app.Library.Capture("欢迎使用 ClipTap", Now);
-            app.Library.Capture("https://github.com/langji3/cliptap", Now.AddSeconds(1));
-            app.Library.Capture("让常用内容，随取随贴。", Now.AddSeconds(2));
+            app.Library.State.History.AddRange([
+                new(Guid.NewGuid(), "让常用内容，随取随贴。", Now.AddSeconds(2)),
+                new(Guid.NewGuid(), "https://github.com/langji3/cliptap", Now.AddSeconds(1)),
+                new(Guid.NewGuid(), "欢迎使用 ClipTap", Now)]);
+            historySource.Snapshot = new(HistoryStatus.Ready, app.Library.State.History.ToArray());
+            Await(app.RefreshSystemHistoryAsync());
             app.Library.SaveSnippet(Snippet("常用邮箱", "hello@example.com", pinned: true));
             app.Library.SaveSnippet(Snippet("测试数据库密码", "never-visible-in-row", sensitive: true));
             panel.Show(); panel.RefreshRows();
@@ -277,8 +255,9 @@ internal static class Program
             Check(!app.Library.State.Snippets.Any(s => s.Title == "Inline test"));
             panel.ShowSettings(); var settings = (SettingsView)host.Content!;
             Click(settings, "ClearButton"); var clear = (InlineConfirmation)settings.FindName("Confirmation");
-            Click(clear, "CancelButton"); Equal(3, app.Library.State.History.Count);
-            Click(settings, "ClearButton"); Click(clear, "ConfirmButton"); Equal(0, app.Library.State.History.Count);
+            Click(clear, "CancelButton"); Equal(3, app.History.Count); Equal(0, historySource.ClearCalls);
+            Click(settings, "ClearButton"); Click(clear, "ConfirmButton"); Equal(0, app.History.Count); Equal(1, historySource.ClearCalls);
+            Equal(3, app.Library.State.History.Count); // Legacy data is not the system-history source.
             SendKey(panel, Key.Escape); Check(host.Content is null); Equal(windows, app.Windows.Count);
         });
         Test("Navigation: failed save retains editor draft and committed data", () =>
@@ -300,14 +279,80 @@ internal static class Program
             finally { File.Delete(uiDirectory); Directory.CreateDirectory(uiDirectory); }
         });
         panel.Hide();
+        Test("System history: replacement, disabled/access errors and sensitive filtering", () =>
+        {
+            panel.OpenPanel(false);
+            var old = new ClipEntry(Guid.NewGuid(), "before deletion", Now);
+            historySource.Snapshot = new(HistoryStatus.Ready, [old]);
+            Await(app.RefreshSystemHistoryAsync()); panel.RefreshRows(); Equal(1, app.History.Count);
+            historySource.Snapshot = new(HistoryStatus.Ready, []);
+            Await(app.RefreshSystemHistoryAsync()); panel.RefreshRows(); Equal(0, app.History.Count);
+            Equal(0, ((ListBox)panel.FindName("Entries")).Items.Count);
+            foreach (var state in new[] { HistoryStatus.Disabled, HistoryStatus.AccessDenied, HistoryStatus.Unavailable })
+            {
+                historySource.Snapshot = new(state, []);
+                Await(app.RefreshSystemHistoryAsync()); panel.RefreshRows();
+                Equal(Visibility.Visible, ((Button)panel.FindName("SystemSettingsButton")).Visibility);
+                Equal(0, app.History.Count);
+            }
+            var secret = app.Library.State.Snippets.Single(s => s.IsSensitive).Value;
+            historySource.Snapshot = new(HistoryStatus.Ready, [new(Guid.NewGuid(), secret, Now), old]);
+            Await(app.RefreshSystemHistoryAsync()); panel.RefreshRows(); Equal(1, app.History.Count); Equal(old.Id, app.History[0].Id);
+            Check(app.Library.State.History.All(c => c.Id != old.Id));
+            panel.Hide();
+            historySource.Snapshot = new(HistoryStatus.Ready, []);
+            historySource.RaiseChanged();
+            Equal(HistoryStatus.Loading, app.HistoryStatus); Equal(0, app.History.Count);
+            panel.OpenPanel(false); Equal(HistoryStatus.Ready, app.HistoryStatus); Equal(0, app.History.Count);
+            panel.Hide();
+        });
+        Test("System history: stale reads cannot restore deleted items; failures stay visible", () =>
+        {
+            var pending = new TaskCompletionSource<HistorySnapshot>();
+            using var source = new FakeHistorySource { Read = () => pending.Task };
+            using var history = new SystemHistoryService(source);
+            var oldRead = history.RefreshAsync();
+            source.Read = () => Task.FromResult(new HistorySnapshot(HistoryStatus.Ready, []));
+            Await(history.RefreshAsync());
+            pending.SetResult(new(HistoryStatus.Ready, [new(Guid.NewGuid(), "stale", Now)]));
+            Await(oldRead); Equal(0, history.Snapshot.Items.Count);
+            source.Read = () => throw new UnauthorizedAccessException();
+            Await(history.RefreshAsync()); Equal(HistoryStatus.Unavailable, history.Snapshot.Status);
+            source.ClearResult = false;
+            var clear = history.ClearAsync(); Await(clear); Check(!clear.Result);
+        });
+        if (args.Contains("--system-history"))
+            Test("Windows native history: read-only API probe (contents not logged)", () =>
+            {
+                using var native = new WindowsHistorySource();
+                var read = native.ReadAsync(); Await(read);
+                Console.WriteLine($"  Windows history status: {read.Result.Status}; text items: {read.Result.Items.Count}");
+                Check(Enum.IsDefined(read.Result.Status));
+            });
         Directory.Delete(uiDirectory, recursive: true);
         if (args.Contains("--integration"))
-            Test("Cross-process: restore a real input focus and paste; ignore own clipboard writes", PasteIntegration.Verify);
+            Test("Cross-process: restore a real input focus and paste", PasteIntegration.Verify);
         Console.WriteLine($"\n{_passed} passed, {_failed} failed. Screenshots: {artifactDirectory}");
         return _failed == 0 ? 0 : 1;
     }
 
     private static void Click(FrameworkElement parent, string name) => ((Button)parent.FindName(name)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    private static void Await(Task task)
+    {
+        if (!task.IsCompleted)
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            var frame = new DispatcherFrame();
+            var timeout = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+            timeout.Tick += (_, _) => frame.Continue = false;
+            timeout.Start();
+            task.GetAwaiter().OnCompleted(() => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)));
+            Dispatcher.PushFrame(frame);
+            timeout.Stop();
+            if (!task.IsCompleted) throw new TimeoutException("Async UI test timed out");
+        }
+        task.GetAwaiter().GetResult();
+    }
     private static void Render(Window window, string path)
     {
         window.UpdateLayout();
@@ -350,4 +395,22 @@ internal static class Program
         Directory.CreateDirectory(root);
         try { action(root); } finally { Directory.Delete(root, recursive: true); }
     }
+}
+
+internal sealed class FakeHistorySource : ISystemHistorySource
+{
+    public event Action? Changed;
+    internal HistorySnapshot Snapshot { get; set; } = new(HistoryStatus.Ready, []);
+    internal Func<Task<HistorySnapshot>>? Read { get; set; }
+    internal int ClearCalls { get; private set; }
+    internal bool ClearResult { get; set; } = true;
+    public Task<HistorySnapshot> ReadAsync() => Read?.Invoke() ?? Task.FromResult(Snapshot);
+    public bool Clear()
+    {
+        ++ClearCalls;
+        if (ClearResult) Snapshot = new(HistoryStatus.Ready, []);
+        return ClearResult;
+    }
+    internal void RaiseChanged() => Changed?.Invoke();
+    public void Dispose() { }
 }

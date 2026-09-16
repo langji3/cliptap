@@ -19,6 +19,7 @@ public partial class App : System.Windows.Application
     private ClipboardService? _clipboard;
     private ThemeService? _theme;
     private DesktopEvents? _events;
+    private SystemHistoryService? _history;
     private bool _ownsMutex;
     private bool _dirty;
     private MainWindow? _panel;
@@ -26,8 +27,11 @@ public partial class App : System.Windows.Application
     internal ClipboardService ClipboardService => _clipboard!;
     internal bool IsQuitting { get; private set; }
     internal bool HotkeyAvailable => _events?.HotkeyAvailable ?? true;
+    internal HistoryStatus HistoryStatus => _history?.Snapshot.Status ?? HistoryStatus.Unavailable;
+    internal IReadOnlyList<ClipEntry> History => (_history?.Snapshot.Items ?? [])
+        .Where(c => !Library.State.Snippets.Any(s => s.IsSensitive && s.Value == c.Text)).ToArray();
     public App() { }
-    internal App(EncryptedStore store) => _store = store;
+    internal App(EncryptedStore store, ISystemHistorySource history) { _store = store; InitializeHistory(history); }
     private MainWindow Panel
     {
         get
@@ -61,15 +65,12 @@ public partial class App : System.Windows.Application
         // Persist normalization (including sensitive-history removal) even if the user makes no edits.
         if (File.Exists(_store.FilePath)) Changed();
         _clipboard = new ClipboardService();
-        _clipboard.TextCaptured += text =>
-        {
-            if (Library.Capture(text, DateTimeOffset.Now)) { Changed(); _panel?.RefreshHistory(); }
-        };
+        InitializeHistory(new WindowsHistorySource());
         CreateTray();
-        try { _events = new DesktopEvents(() => Panel.ToggleFromHotkey(), _clipboard.OnChanged); }
+        try { _events = new DesktopEvents(() => Panel.ToggleFromHotkey()); }
         catch (Win32Exception ex)
         {
-            MessageBox.Show("无法监听剪贴板：" + ex.Message, "ClipTap", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show("无法创建快捷键监听：" + ex.Message, "ClipTap", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1); return;
         }
         if (!HotkeyAvailable) Notify("Alt+空格 已被占用。请先通过托盘打开 ClipTap，或关闭占用此快捷键的应用。");
@@ -80,15 +81,10 @@ public partial class App : System.Windows.Application
     {
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("打开 ClipTap    Alt+空格", null, (_, _) => Panel.OpenPanel(captureTarget: false));
-        menu.Items.Add("暂停记录", null, (_, _) =>
-        {
-            Library.State.Settings.CapturePaused = !Library.State.Settings.CapturePaused;
-            Changed(); _panel?.RefreshRows();
-        });
+        menu.Items.Add("Windows 剪贴板设置", null, (_, _) => OpenSystemClipboardSettings());
         menu.Items.Add("设置", null, (_, _) => { Panel.OpenPanel(captureTarget: false); Panel.ShowSettings(); });
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出 ClipTap", null, (_, _) => Quit());
-        menu.Opening += (_, _) => ((Forms.ToolStripMenuItem)menu.Items[1]).Checked = Library.State.Settings.CapturePaused;
         _tray = new Forms.NotifyIcon { Text = "ClipTap · Alt+空格", Icon = CreateIcon(), Visible = true, ContextMenuStrip = menu };
         _tray.MouseClick += (_, args) => { if (args.Button == Forms.MouseButtons.Left) Panel.OpenPanel(captureTarget: false); };
     }
@@ -113,6 +109,36 @@ public partial class App : System.Windows.Application
     }
 
     internal void Notify(string message) => _tray?.ShowBalloonTip(3000, "ClipTap", message, Forms.ToolTipIcon.Info);
+    private void InitializeHistory(ISystemHistorySource source)
+    {
+        _history = new SystemHistoryService(source);
+        _history.Updated += () => _panel?.RefreshHistory();
+        source.Changed += () =>
+        {
+            if (Dispatcher.HasShutdownStarted) return;
+            void Refresh()
+            {
+                if (IsQuitting) return;
+                _history.Invalidate();
+                if (_panel?.IsVisible == true) _ = _history.RefreshAsync();
+            }
+            if (Dispatcher.CheckAccess()) { Refresh(); return; }
+            try { Dispatcher.BeginInvoke(new Action(Refresh)); }
+            catch (InvalidOperationException) when (Dispatcher.HasShutdownStarted) { }
+        };
+    }
+    internal Task RefreshSystemHistoryAsync()
+    {
+        if (_history is null) return Task.CompletedTask;
+        _history.Invalidate();
+        return _history.RefreshAsync();
+    }
+    internal Task<bool> ClearSystemHistoryAsync() => _history?.ClearAsync() ?? Task.FromResult(false);
+    internal bool OpenSystemClipboardSettings()
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:clipboard") { UseShellExecute = true }); return true; }
+        catch (Win32Exception) { Notify("无法打开 Windows 设置"); return false; }
+    }
     internal void PreviewTheme(AppearanceMode mode, AccentPalette accent)
     {
         if (_theme is null) ThemeService.ApplyTheme(mode, accent);
@@ -183,6 +209,7 @@ public partial class App : System.Windows.Application
         SaveNow();
         _saveTimer?.Stop();
         _events?.Dispose();
+        _history?.Dispose();
         _clipboard?.Dispose();
         _theme?.Dispose();
         if (_tray is not null) { _tray.Visible = false; _tray.Icon?.Dispose(); _tray.ContextMenuStrip?.Dispose(); _tray.Dispose(); }

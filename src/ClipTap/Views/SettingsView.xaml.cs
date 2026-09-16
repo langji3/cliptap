@@ -18,7 +18,7 @@ public partial class SettingsView : UserControl
     private AccentPalette _accent;
     private bool _ready, _saved;
     internal event Action? Finished;
-    internal bool IsDropDownOpen => ThemeInput.IsDropDownOpen || LimitInput.IsDropDownOpen;
+    internal bool IsDropDownOpen => ThemeInput.IsDropDownOpen;
 
     public SettingsView(App app)
     {
@@ -29,10 +29,6 @@ public partial class SettingsView : UserControl
         ThemeInput.ItemsSource = new[] { new ThemeChoice(AppearanceMode.Light, "浅色"), new ThemeChoice(AppearanceMode.Dark, "深色"), new ThemeChoice(AppearanceMode.System, "跟随系统") };
         ThemeInput.SelectedValue = _originalTheme;
         (FindName(_accent + "Accent") as RadioButton)!.IsChecked = true;
-        LimitInput.ItemsSource = new[] { 20, 50, 100, 200, 500 };
-        LimitInput.SelectedItem = app.Library.State.Settings.HistoryLimit;
-        if (LimitInput.SelectedIndex < 0) LimitInput.SelectedItem = 100;
-        PauseInput.IsChecked = app.Library.State.Settings.CapturePaused;
         try { StartupInput.IsChecked = StartupService.IsEnabled(); }
         catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException or IOException)
         { StartupInput.IsEnabled = false; ErrorLabel.Text = "无法读取开机启动设置"; }
@@ -70,8 +66,8 @@ public partial class SettingsView : UserControl
             }
             var settings = new AppSettings
             {
-                HistoryLimit = (int)(LimitInput.SelectedItem ?? 100),
-                CapturePaused = PauseInput.IsChecked == true,
+                HistoryLimit = _app.Library.State.Settings.HistoryLimit,
+                CapturePaused = _app.Library.State.Settings.CapturePaused,
                 Theme = ThemeInput.SelectedValue is AppearanceMode mode ? mode : AppearanceMode.Light,
                 Accent = _accent
             };
@@ -93,10 +89,13 @@ public partial class SettingsView : UserControl
 
     private void OnClear(object sender, RoutedEventArgs e)
     {
-        Confirmation.Ask("清空全部历史？", "清空", () =>
+        Confirmation.Ask("清空 Windows 剪贴板历史？\nWin+V 中的固定项会保留。", "清空", async () =>
         {
-            ErrorLabel.Text = _app.TryUpdateLibrary(library => library.State.History.Clear()) ? "已清空" : "清空失败，请重试";
-            return Task.CompletedTask;
+            ClearButton.IsEnabled = false;
+            try { ErrorLabel.Text = await _app.ClearSystemHistoryAsync() ? "已清空" : "清空失败，请重试"; }
+            finally { ClearButton.IsEnabled = true; }
         });
     }
+    private void OnSystemSettings(object sender, RoutedEventArgs e)
+    { if (!_app.OpenSystemClipboardSettings()) ErrorLabel.Text = "无法打开 Windows 设置"; }
 }

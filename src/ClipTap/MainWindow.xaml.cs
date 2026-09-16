@@ -50,6 +50,7 @@ public partial class MainWindow : Window
         if (IsList) { _tab = 0; RefreshRows(); }
         PlaceNearTarget();
         Show(); Activate();
+        _ = LoadHistoryAsync();
         if (IsList) Entries.Focus(); else PageHost.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
     }
 
@@ -65,12 +66,14 @@ public partial class MainWindow : Window
         Top = info.Work.Top / scale + Math.Max(0, ((info.Work.Bottom - info.Work.Top) / scale - Height) / 3);
     }
 
+    private async Task LoadHistoryAsync() { await _app.RefreshSystemHistoryAsync(); RefreshHistory(); }
+
     internal void RefreshHistory() { if (IsList && _tab == 0 && IsVisible) RefreshRows(preserveSelection: true); }
     internal void RefreshRows(bool preserveSelection = false)
     {
         var selected = preserveSelection ? (Entries.SelectedItem as EntryRow)?.Id : null;
         var rows = _tab == 0
-            ? _app.Library.State.History.Select(c => new EntryRow(c.Id, Library.Preview(c.Text), c.CopiedAt.ToLocalTime().ToString("HH:mm"), false, false)).ToList()
+            ? _app.History.Select(c => new EntryRow(c.Id, Library.Preview(c.Text), c.CopiedAt.ToLocalTime().ToString("HH:mm"), false, false)).ToList()
             : _app.Library.OrderedSnippets().Select(s => new EntryRow(s.Id, s.Title, "", s.IsSensitive, s.IsPinned)).ToList();
         Entries.ItemsSource = rows;
         Entries.SelectedItem = rows.FirstOrDefault(r => r.Id == selected) ?? rows.FirstOrDefault();
@@ -81,8 +84,19 @@ public partial class MainWindow : Window
         SnippetsTab.FontWeight = _tab == 1 ? FontWeights.SemiBold : FontWeights.Normal;
         SnippetActions.Visibility = _tab == 1 ? Visibility.Visible : Visibility.Collapsed;
         EditButton.IsEnabled = rows.Count > 0;
-        StatusLabel.Text = !_app.HotkeyAvailable ? "快捷键被占用" : _app.Library.State.Settings.CapturePaused ? "已暂停" : "Alt+空格唤醒";
+        StatusLabel.Text = _tab == 0 ? _app.HistoryStatus switch
+        {
+            HistoryStatus.Loading => "正在读取…",
+            HistoryStatus.Disabled => "请开启 Windows 剪贴板历史",
+            HistoryStatus.AccessDenied => "无法访问 Windows 历史",
+            HistoryStatus.Unavailable => "Windows 历史暂不可用",
+            _ => !_app.HotkeyAvailable ? "快捷键被占用" : "Alt+空格唤醒"
+        } : "Alt+空格唤醒";
+        SystemSettingsButton.Visibility = _tab == 0 && _app.HistoryStatus != HistoryStatus.Ready && _app.HistoryStatus != HistoryStatus.Loading
+            ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private void OnSystemSettings(object sender, RoutedEventArgs e) => _app.OpenSystemClipboardSettings();
 
     private void SwitchTab(int tab) { Confirmation.Dismiss(); _tab = tab; RefreshRows(); Entries.Focus(); }
     private void OnHistoryTab(object sender, RoutedEventArgs e) => SwitchTab(0);
@@ -150,7 +164,7 @@ public partial class MainWindow : Window
     private async Task PasteRowAsync(EntryRow row, PasteTarget? target)
     {
         if (_busy) return;
-        var value = _tab == 0 ? _app.Library.State.History.FirstOrDefault(c => c.Id == row.Id)?.Text
+        var value = _tab == 0 ? _app.History.FirstOrDefault(c => c.Id == row.Id)?.Text
             : _app.Library.State.Snippets.FirstOrDefault(s => s.Id == row.Id)?.Value;
         if (value is null) return;
         _busy = true;

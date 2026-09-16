@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
-using ClipTap.Core;
 
 namespace ClipTap.Services;
 
@@ -9,48 +8,14 @@ internal sealed class ClipboardService : IDisposable
     private const string SourceFormat = "ClipTap.Source";
     private const string ExcludeFormat = "ExcludeClipboardContentFromMonitorProcessing";
     private const string HistoryFormat = "CanIncludeInClipboardHistory";
-    private readonly DispatcherTimer _readTimer;
     private readonly DispatcherTimer _clearTimer;
-    private int _attempts;
     private uint? _secretSequence;
-    public event Action<string>? TextCaptured;
 
     public ClipboardService()
     {
-        _readTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
-        _readTimer.Tick += (_, _) => Read();
         _clearTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _clearTimer.Tick += (_, _) => ClearOwnedSecret();
     }
-
-    public void OnChanged()
-    {
-        _attempts = 0;
-        _readTimer.Stop();
-        _readTimer.Start();
-    }
-
-    private void Read()
-    {
-        _readTimer.Stop();
-        try
-        {
-            var data = Clipboard.GetDataObject();
-            if (data is null || data.GetDataPresent(SourceFormat) || data.GetDataPresent(ExcludeFormat)) return;
-            if (data.GetDataPresent(HistoryFormat) && IsZero(data.GetData(HistoryFormat))) return;
-            if (data.GetDataPresent(DataFormats.UnicodeText) && data.GetData(DataFormats.UnicodeText) is string text
-                && text.Length <= Library.MaxTextLength)
-                TextCaptured?.Invoke(text);
-        }
-        catch (COMException) { if (++_attempts < 5) _readTimer.Start(); }
-    }
-
-    private static bool IsZero(object? value) => value switch
-    {
-        MemoryStream stream => stream.ToArray() is var bytes && bytes.Length >= 4 && BitConverter.ToInt32(bytes) == 0,
-        int number => number == 0,
-        _ => false
-    };
 
     public async Task<bool> WriteAsync(string text, bool sensitive)
     {
@@ -105,5 +70,5 @@ internal sealed class ClipboardService : IDisposable
         _clearTimer.Interval = TimeSpan.FromSeconds(30);
     }
 
-    public void Dispose() { _readTimer.Stop(); ClearOwnedSecret(); _clearTimer.Stop(); }
+    public void Dispose() { ClearOwnedSecret(); _clearTimer.Stop(); }
 }
