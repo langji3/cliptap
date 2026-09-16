@@ -53,18 +53,26 @@ public partial class MainWindow : Window
         }
         if (IsList) { _tab = 0; RefreshRows(); }
         PlaceNearTarget();
+        // Prepare before Show so there is no fully visible frame before the entrance starts.
+        PanelSurface.BeginAnimation(OpacityProperty, null);
+        PanelSurface.Opacity = entering && _app.AnimatePanel ? 0 : 1;
         Show(); Activate();
         if (entering && _app.AnimatePanel)
         {
-            var duration = TimeSpan.FromMilliseconds(160);
-            var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-            PanelSurface.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = easing });
-            EntranceOffset.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, 0, duration) { EasingFunction = easing });
+            var duration = TimeSpan.FromMilliseconds(240);
+            var easing = new QuarticEase { EasingMode = EasingMode.EaseOut };
+            PanelSurface.Opacity = 1;
+            PanelSurface.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)) { EasingFunction = easing });
+            EntranceOffset.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(4, 0, duration) { EasingFunction = easing });
+            EntranceScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.975, 1, duration) { EasingFunction = easing });
+            EntranceScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.975, 1, duration) { EasingFunction = easing });
         }
         else
         {
             PanelSurface.BeginAnimation(OpacityProperty, null); PanelSurface.Opacity = 1;
             EntranceOffset.BeginAnimation(TranslateTransform.YProperty, null); EntranceOffset.Y = 0;
+            EntranceScale.BeginAnimation(ScaleTransform.ScaleXProperty, null); EntranceScale.ScaleX = 1;
+            EntranceScale.BeginAnimation(ScaleTransform.ScaleYProperty, null); EntranceScale.ScaleY = 1;
         }
         _ = LoadHistoryAsync();
         if (IsList) Entries.Focus(); else PageHost.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
