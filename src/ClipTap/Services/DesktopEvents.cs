@@ -22,7 +22,8 @@ internal sealed class DesktopEvents : NativeWindow, IDisposable
             DestroyHandle();
             throw new Win32Exception(error);
         }
-        HotkeyAvailable = NativeMethods.RegisterHotKey(Handle, NativeMethods.HotkeyId, 0x4003, 0x56);
+        // MOD_ALT | MOD_NOREPEAT, VK_SPACE.
+        HotkeyAvailable = NativeMethods.RegisterHotKey(Handle, NativeMethods.HotkeyId, 0x4001, 0x20);
     }
 
     protected override void WndProc(ref Message message)

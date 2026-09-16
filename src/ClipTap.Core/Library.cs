@@ -12,7 +12,7 @@ public sealed class Library
         if (state.Version != 1 || state.Settings is null || state.History is null || state.Snippets is null)
             throw new InvalidDataException("不支持的数据格式。请保留原文件并检查应用版本。");
         State = state;
-        if (!Enum.IsDefined(State.Settings.Theme)) State.Settings.Theme = AppearanceMode.System;
+        if (!Enum.IsDefined(State.Settings.Theme)) State.Settings.Theme = AppearanceMode.Light;
         if (!Enum.IsDefined(State.Settings.Accent)) State.Settings.Accent = AccentPalette.Green;
         State.Settings.HistoryLimit = Math.Clamp(State.Settings.HistoryLimit, 20, 500);
         State.Snippets = state.Snippets

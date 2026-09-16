@@ -41,7 +41,7 @@ public partial class App : System.Windows.Application
         _instance = new Mutex(true, @"Local\ClipTap." + Environment.UserName, out _ownsMutex);
         if (!_ownsMutex)
         {
-            MessageBox.Show("ClipTap 已在运行。按 Ctrl+Alt+V 唤起，或点击托盘图标。", "ClipTap");
+            MessageBox.Show("ClipTap 已在运行。按 Alt+空格 唤起，或点击托盘图标。", "ClipTap");
             Shutdown(); return;
         }
         var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClipTap");
@@ -70,14 +70,14 @@ public partial class App : System.Windows.Application
             MessageBox.Show("无法监听剪贴板：" + ex.Message, "ClipTap", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1); return;
         }
-        if (!HotkeyAvailable) Notify("Ctrl+Alt+V 已被占用。请先通过托盘打开 ClipTap，或关闭占用此快捷键的应用。");
+        if (!HotkeyAvailable) Notify("Alt+空格 已被占用。请先通过托盘打开 ClipTap，或关闭占用此快捷键的应用。");
         if (!e.Args.Contains("--background")) Panel.OpenPanel(captureTarget: false);
     }
 
     private void CreateTray()
     {
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("打开 ClipTap    Ctrl+Alt+V", null, (_, _) => Panel.OpenPanel(captureTarget: false));
+        menu.Items.Add("打开 ClipTap    Alt+空格", null, (_, _) => Panel.OpenPanel(captureTarget: false));
         menu.Items.Add("暂停记录", null, (_, _) =>
         {
             Library.State.Settings.CapturePaused = !Library.State.Settings.CapturePaused;
@@ -87,7 +87,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出 ClipTap", null, (_, _) => Quit());
         menu.Opening += (_, _) => ((Forms.ToolStripMenuItem)menu.Items[1]).Checked = Library.State.Settings.CapturePaused;
-        _tray = new Forms.NotifyIcon { Text = "ClipTap · Ctrl+Alt+V", Icon = CreateIcon(), Visible = true, ContextMenuStrip = menu };
+        _tray = new Forms.NotifyIcon { Text = "ClipTap · Alt+空格", Icon = CreateIcon(), Visible = true, ContextMenuStrip = menu };
         _tray.MouseClick += (_, args) => { if (args.Button == Forms.MouseButtons.Left) Panel.OpenPanel(captureTarget: false); };
     }
 

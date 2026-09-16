@@ -62,7 +62,7 @@ internal static class Program
             var candidate = library.WithSettings(new AppSettings { HistoryLimit = 20, CapturePaused = true, Theme = AppearanceMode.Dark, Accent = AccentPalette.Purple });
             Equal(20, candidate.State.History.Count); Equal(40, library.State.History.Count);
             Equal(100, library.State.Settings.HistoryLimit); Check(!library.State.Settings.CapturePaused);
-            Equal(AppearanceMode.System, library.State.Settings.Theme);
+            Equal(AppearanceMode.Light, library.State.Settings.Theme);
             Equal(AccentPalette.Purple, candidate.State.Settings.Accent); Equal(AccentPalette.Green, library.State.Settings.Accent);
         });
         Test("Snippets: updates preserve identity and pinned items sort first", () =>
@@ -124,6 +124,7 @@ internal static class Program
         {
             var hotkeys = 0; var copies = 0;
             using var events = new DesktopEvents(() => hotkeys++, () => copies++);
+            Console.WriteLine($"  Alt+Space registration available: {events.HotkeyAvailable}");
             SendMessage(events.Handle, NativeMethods.WmHotkey, NativeMethods.HotkeyId, nint.Zero);
             SendMessage(events.Handle, NativeMethods.WmClipboardUpdate, nint.Zero, nint.Zero);
             Equal(1, hotkeys); Equal(1, copies);
@@ -148,6 +149,9 @@ internal static class Program
             app.Library.SaveSnippet(Snippet("常用邮箱", "hello@example.com", pinned: true));
             app.Library.SaveSnippet(Snippet("测试数据库密码", "never-visible-in-row", sensitive: true));
             panel.Show(); panel.RefreshRows();
+            panel.UpdateLayout();
+            var header = (Grid)panel.FindName("HeaderDragArea");
+            Equal<object>(header, header.InputHitTest(new Point(260, 32)));
             var entries = (ListBox)panel.FindName("Entries");
             Equal(0, entries.SelectedIndex);
             SendKey(panel, Key.Down); Equal(1, entries.SelectedIndex);
@@ -203,15 +207,18 @@ internal static class Program
             Check(((SolidColorBrush)panel.Background).Color.R > 128);
             panel.Hide();
         });
-        Test("Theme: preference survives encrypted storage; invalid values use system", () =>
+        Test("Theme: preference survives encrypted storage; defaults and invalid values use light", () =>
         {
             WithTempDirectory(directory =>
             {
                 var store = new EncryptedStore(directory); var state = new AppState();
+                Equal(AppearanceMode.Light, state.Settings.Theme);
                 state.Settings.Theme = AppearanceMode.Dark; state.Settings.Accent = AccentPalette.Purple; store.Save(state);
                 Equal(AppearanceMode.Dark, store.Load().Settings.Theme);
                 Equal(AccentPalette.Purple, store.Load().Settings.Accent);
-                state.Settings.Theme = (AppearanceMode)999; Equal(AppearanceMode.System, new Library(state).State.Settings.Theme);
+                state.Settings.Theme = AppearanceMode.System; store.Save(state);
+                Equal(AppearanceMode.System, new Library(store.Load()).State.Settings.Theme);
+                state.Settings.Theme = (AppearanceMode)999; Equal(AppearanceMode.Light, new Library(state).State.Settings.Theme);
             });
         });
         Test("Accents: all six color/mode combinations render with readable text", () =>

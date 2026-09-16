@@ -6,7 +6,7 @@
     <StackPanel Margin="0,0,0,22"><TextBlock Text="保持简单" FontSize="21" FontWeight="SemiBold" /><TextBlock Text="ClipTap 0.1 · 本地剪贴板与快捷片段" Foreground="{DynamicResource Muted}" Margin="0,7,0,0" /></StackPanel>
     <StackPanel Grid.Row="1">
       <TextBlock Text="唤起快捷键" Foreground="{DynamicResource Muted}" />
-      <TextBlock Text="Ctrl + Alt + V" FontWeight="SemiBold" Margin="0,6,0,15" />
+      <TextBlock Text="Alt + 空格" FontWeight="SemiBold" Margin="0,6,0,15" />
       <CheckBox x:Name="StartupInput" Content="登录 Windows 时启动" />
       <CheckBox x:Name="PauseInput" Content="暂停记录新的剪贴板内容" />
       <Grid Margin="0,16,0,0"><TextBlock Text="外观" VerticalAlignment="Center" /><ComboBox x:Name="ThemeInput" Width="140" Height="32" HorizontalAlignment="Right" SelectionChanged="OnThemeChanged" AutomationProperties.Name="外观主题" /></Grid>

@@ -84,7 +84,7 @@ public partial class MainWindow : Window
         CountLabel.Text = $"{rows.Count} 条";
         EmptyState.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyTitle.Text = _tab == 0 ? "从一次复制开始" : "把常用内容放在手边";
-        EmptyHint.Text = _tab == 0 ? "复制一段文字，它会出现在这里。\n随时按 Ctrl+Alt+V 唤起。" : "添加标题和内容，下次选中即可粘贴。";
+        EmptyHint.Text = _tab == 0 ? "复制一段文字，它会出现在这里。\n随时按 Alt+空格 唤起。" : "添加标题和内容，下次选中即可粘贴。";
         SnippetActions.Visibility = _tab == 1 ? Visibility.Visible : Visibility.Collapsed;
         StatusLabel.Text = _tab == 1 ? "F2 编辑" : _app.Library.State.Settings.CapturePaused ? "记录已暂停" : "仅存于本机 · 加密保存";
         if (!_app.HotkeyAvailable) StatusLabel.Text = "快捷键被占用 · 请使用托盘";
@@ -186,12 +186,15 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, CancelEventArgs e) { if (!_app.IsQuitting) { e.Cancel = true; Hide(); } }
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e)
     {
+        if (_busy || _dialogOpen || e.ChangedButton != MouseButton.Left || e.LeftButton != MouseButtonState.Pressed) return;
         if (e.OriginalSource is DependencyObject source && FindButton(source)) return;
-        if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+        e.Handled = true;
+        DragMove();
     }
     private static bool FindButton(DependencyObject source)
     {
-        for (var current = source; current is not null; current = VisualTreeHelper.GetParent(current))
+        for (var current = source; current is not null;
+             current = current is Visual ? VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current))
             if (current is Button) return true;
         return false;
     }

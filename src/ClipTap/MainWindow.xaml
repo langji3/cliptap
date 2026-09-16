@@ -9,8 +9,8 @@
         <RowDefinition Height="68" /><RowDefinition Height="50" /><RowDefinition Height="34" />
         <RowDefinition Height="*" /><RowDefinition Height="48" /><RowDefinition Height="39" />
       </Grid.RowDefinitions>
-      <Grid Margin="22,0,18,0" MouseLeftButtonDown="OnHeaderDrag">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <Grid x:Name="HeaderDragArea" Background="Transparent" Cursor="SizeAll" MouseLeftButtonDown="OnHeaderDrag">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="22,0,0,0">
           <Border Width="30" Height="30" CornerRadius="9" Background="{DynamicResource Accent}" Margin="0,0,10,0">
             <Viewbox Width="30" Height="30">
               <Canvas Width="64" Height="64">
@@ -22,9 +22,8 @@
             </Viewbox>
           </Border>
           <TextBlock Text="ClipTap" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
-          <TextBlock Text="随取 · 随贴" Foreground="{DynamicResource Muted}" Margin="10,4,0,0" FontSize="11" VerticalAlignment="Center" />
         </StackPanel>
-        <Button Content="⚙" Width="32" Height="32" Padding="0" FontSize="18" HorizontalAlignment="Right" Background="Transparent" ToolTip="设置" AutomationProperties.Name="设置" Click="OnSettings" />
+        <Button Content="⚙" Width="32" Height="32" Padding="0" Margin="0,0,18,0" FontSize="18" HorizontalAlignment="Right" Background="Transparent" ToolTip="设置" AutomationProperties.Name="设置" Click="OnSettings" />
       </Grid>
       <Border Grid.Row="1" Margin="18,0,18,5" Background="{DynamicResource Chrome}" CornerRadius="9" Padding="4">
         <UniformGrid Columns="2">
