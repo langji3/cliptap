@@ -45,13 +45,22 @@
       <StackPanel>
         <TextBlock Text="名称" FontSize="12" Foreground="{DynamicResource Muted}" Margin="2,0,0,8" />
         <TextBox x:Name="TitleInput" Height="48" MaxLength="80" FontSize="15" AutomationProperties.Name="片段标题" />
+        <TextBlock Text="触发词 · 可选" FontSize="12" Foreground="{DynamicResource Muted}" Margin="2,14,0,8" />
+        <Grid>
+          <TextBox x:Name="TriggerInput" Height="44" MaxLength="32" FontSize="14" InputMethod.IsInputMethodEnabled="False" AutomationProperties.Name="触发词" ToolTip="输入后自动替换；留空关闭" />
+          <TextBlock Text="例如 !hzpass" Margin="13,0" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" IsHitTestVisible="False">
+            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
+              <DataTrigger Binding="{Binding Text, ElementName=TriggerInput}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+            </Style.Triggers></Style></TextBlock.Style>
+          </TextBlock>
+        </Grid>
         <Grid Margin="2,20,2,8">
           <TextBlock Text="内容" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
           <CheckBox x:Name="RevealInput" Content="显示内容" HorizontalAlignment="Right" Margin="0" Visibility="Collapsed" Checked="OnRevealChanged" Unchecked="OnRevealChanged" />
         </Grid>
         <Grid>
-          <TextBox x:Name="ValueInput" Height="196" MaxLength="20000" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="片段内容" />
-          <PasswordBox x:Name="SecretInput" Height="196" MaxLength="20000" VerticalContentAlignment="Top" Visibility="Collapsed" AutomationProperties.Name="敏感片段内容" />
+          <TextBox x:Name="ValueInput" Height="130" MaxLength="20000" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="片段内容" />
+          <PasswordBox x:Name="SecretInput" Height="130" MaxLength="20000" VerticalContentAlignment="Top" Visibility="Collapsed" AutomationProperties.Name="敏感片段内容" />
         </Grid>
         <Border Margin="0,14,0,0" Padding="12,14" CornerRadius="10" Background="{DynamicResource CardGradient}" BorderBrush="{DynamicResource CardLine}" BorderThickness="1">
           <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="25" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>

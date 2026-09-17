@@ -98,7 +98,7 @@ public partial class MainWindow : Window
         var selected = preserveSelection ? (Entries.SelectedItem as EntryRow)?.Id : null;
         var rows = _tab == 0
             ? _app.History.Select(c => new EntryRow(c.Id, c.IsImage ? "图片" : Library.Preview(c.Text), c.CopiedAt.ToLocalTime().ToString("HH:mm"), false, false, c.IsImage, c.Thumbnail)).ToList()
-            : _app.Library.OrderedSnippets().Select(s => new EntryRow(s.Id, s.Title, "", s.IsSensitive, s.IsPinned)).ToList();
+            : _app.Library.OrderedSnippets().Select(s => new EntryRow(s.Id, s.Title, s.Trigger ?? "", s.IsSensitive, s.IsPinned)).ToList();
         Entries.ItemsSource = rows;
         if (_menuId.HasValue) { rows = rows.Select(r => r with { ActionsOpen = r.Id == _menuId }).ToList(); Entries.ItemsSource = rows; }
         Entries.SelectedItem = rows.FirstOrDefault(r => r.Id == selected) ?? rows.FirstOrDefault();

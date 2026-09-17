@@ -23,6 +23,64 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length == 2 && args[0] == "--paste-fixture") return PasteIntegration.RunFixture(args[1]);
+        if (args.Length == 2 && args[0] == "--expansion-fixture") return ExpansionIntegration.RunFixture(args[1]);
+        Test("Expansion: trigger validation, conflicts and removal", () =>
+        {
+            var library = NewLibrary();
+            var snippet = Snippet("Test", "虚构密码 ✓", sensitive: true) with { Trigger = " !hzpass " };
+            library.SaveSnippet(snippet);
+            Equal("!hzpass", library.State.Snippets.Single().Trigger);
+            foreach (var invalid in new[] { "!a", "abc", "!ABC", "!中a", "!a b", "!ab_", "!" + new string('a', 32) })
+                Throws<ArgumentException>(() => library.SaveSnippet(Snippet("Invalid", "v") with { Trigger = invalid }));
+            foreach (var conflict in new[] { "!hzpass", "!hz", "!hzpass2" })
+                Throws<ArgumentException>(() => library.SaveSnippet(Snippet("Conflict", "v") with { Trigger = conflict }));
+            Throws<ArgumentException>(() => library.SaveSnippet(snippet with { Value = "a\nb" }));
+            Throws<ArgumentException>(() => library.SaveSnippet(snippet with { Value = "a\tb" }));
+            Throws<ArgumentException>(() => library.SaveSnippet(snippet with { Value = new string('a', 2001) }));
+            library.SaveSnippet(snippet with { Trigger = "", Value = "a\nb" });
+            Equal("", library.State.Snippets.Single().Trigger);
+        });
+        Test("Expansion: precise matching, reset, timeout, reconfigure and ambiguity", () =>
+        {
+            var matcher = new ExpansionMatcher();
+            var snippet = Snippet("Test", "value") with { Trigger = "!hzpass" };
+            matcher.Configure([snippet]); long time = 0;
+            Snippet? Feed(string value) { Snippet? result = null; foreach (var c in value) result = matcher.Feed(c, time += 30); return result; }
+            Check(Feed("normal text hzpass") is null); Equal(snippet, Feed("!hzpass"));
+            Check(Feed("!hz") is null); matcher.Reset(); Check(Feed("pass") is null);
+            Feed("!hz"); time += 6000; Check(Feed("pass") is null);
+            Check(Feed("!hzXpass") is null); Equal(snippet, Feed("!!hzpass"));
+            Feed("!hz"); matcher.Configure([snippet]); Check(Feed("pass") is null);
+            matcher.Configure([snippet, snippet with { Id = Guid.NewGuid(), Trigger = "!hz" }]);
+            Check(Feed("!hzpass") is null);
+            matcher.Configure([]); Check(Feed("!hzpass") is null);
+        });
+        Test("Expansion: old JSON and encrypted trigger round trip", () =>
+        {
+            var old = System.Text.Json.JsonSerializer.Deserialize<Snippet>("{\"Id\":\"00000000-0000-0000-0000-000000000001\",\"Title\":\"old\",\"Value\":\"data\"}")!;
+            Check(old.Trigger is null);
+            WithTempDirectory(directory =>
+            {
+                var store = new EncryptedStore(directory); var state = new AppState();
+                state.Snippets.Add(Snippet("Test", "fake-secret") with { Trigger = "!hzpass" });
+                store.Save(state); Equal("!hzpass", store.Load().Snippets[0].Trigger);
+                Check(!Encoding.UTF8.GetString(File.ReadAllBytes(store.FilePath)).Contains("!hzpass"));
+            });
+        });
+        Test("Expansion: native batch deletes only delivered prefix and emits Unicode without Ctrl+V", () =>
+        {
+            var inputs = ExpansionService.BuildInputs(Snippet("Test", "中文🔑") with { Trigger = "!ab" });
+            Equal(12, inputs.Length);
+            Equal((ushort)8, inputs[0].Data.Keyboard.Key); Equal(2u, inputs[1].Data.Keyboard.Flags);
+            Equal((ushort)'中', inputs[4].Data.Keyboard.Scan); Equal(4u, inputs[4].Data.Keyboard.Flags);
+            Check(inputs.All(i => i.Data.Keyboard.Extra == ExpansionService.OutputTag));
+            Check(inputs.Skip(4).All(i => i.Data.Keyboard.Key == 0));
+            Check(ExpansionService.PartialRelease(inputs, 0) is null);
+            Equal(2u, ExpansionService.PartialRelease(inputs, 1)!.Value.Data.Keyboard.Flags);
+            Check(ExpansionService.PartialRelease(inputs, 2) is null);
+            Equal(6u, ExpansionService.PartialRelease(inputs, 5)!.Value.Data.Keyboard.Flags);
+            Check(ExpansionService.PartialRelease(inputs, (uint)inputs.Length) is null);
+        });
         Test("Sensitive snippets purge matching legacy history", () =>
         {
             var library = NewLibrary(); library.State.History.Add(new(Guid.NewGuid(), "secret-value", Now));
@@ -112,6 +170,22 @@ internal static class Program
         Await(app.RefreshSystemHistoryAsync());
         ThemeService.ApplyTheme(AppearanceMode.Light);
         var panel = new MainWindow(app);
+        Test("UI: trigger create, edit, validation and disable persist immediately", () =>
+        {
+            var editor = new SnippetView(app, null);
+            ((TextBox)editor.FindName("TitleInput")).Text = "Expansion test";
+            ((TextBox)editor.FindName("ValueInput")).Text = "fake-value";
+            ((TextBox)editor.FindName("TriggerInput")).Text = "!dbpass";
+            editor.Save(); var saved = app.Library.State.Snippets.Single(); Equal("!dbpass", saved.Trigger);
+            editor = new SnippetView(app, saved);
+            Equal("!dbpass", ((TextBox)editor.FindName("TriggerInput")).Text);
+            ((TextBox)editor.FindName("TriggerInput")).Text = "bad"; editor.Save();
+            Check(((TextBlock)editor.FindName("ErrorLabel")).Text.Length > 0);
+            Equal("!dbpass", app.Library.State.Snippets.Single().Trigger);
+            ((TextBox)editor.FindName("TriggerInput")).Clear(); editor.Save();
+            Equal("", app.Library.State.Snippets.Single().Trigger);
+            Check(app.TryUpdateLibrary(library => library.State.Snippets.Clear()));
+        });
         Test("UI: empty state and clipboard default", () =>
         {
             Equal("Alt+空格唤醒", ((TextBlock)panel.FindName("StatusLabel")).Text);
@@ -418,6 +492,8 @@ internal static class Program
         Directory.Delete(uiDirectory, recursive: true);
         if (args.Contains("--integration"))
             Test("Cross-process: restore a real input focus and paste", PasteIntegration.Verify);
+        if (args.Contains("--expansion-integration"))
+            Test("Cross-process: keyboard expansion preserves surrounding text and clipboard", () => Await(ExpansionIntegration.VerifyAsync()));
         Console.WriteLine($"\n{_passed} passed, {_failed} failed. Screenshots: {artifactDirectory}");
         return _failed == 0 ? 0 : 1;
     }

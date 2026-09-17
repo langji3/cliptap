@@ -3,7 +3,7 @@ namespace ClipTap.Core;
 public sealed record ClipEntry(Guid Id, string Text, DateTimeOffset CopiedAt);
 
 public sealed record Snippet(Guid Id, string Title, string Value, bool IsSensitive, bool IsPinned,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt, string? Trigger = null);
 
 public sealed class AppSettings
 {

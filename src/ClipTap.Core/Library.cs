@@ -42,6 +42,18 @@ public sealed class Library
             throw new ArgumentException("标题需要 1–80 个字符。");
         if (string.IsNullOrEmpty(snippet.Value) || snippet.Value.Length > MaxTextLength)
             throw new ArgumentException($"内容需要 1–{MaxTextLength:N0} 个字符。");
+        var trigger = snippet.Trigger?.Trim() ?? "";
+        if (trigger.Length > 0)
+        {
+            if (!ExpansionMatcher.IsValidTrigger(trigger))
+                throw new ArgumentException("以 ! 开头，后接 2–31 个小写字母、数字或下划线；末尾为字母或数字");
+            if (!ExpansionMatcher.CanExpand(snippet.Value))
+                throw new ArgumentException("自动替换仅支持 2000 字符以内的单行内容；多行内容请留空触发词");
+            if (State.Snippets.Any(s => s.Id != snippet.Id && !string.IsNullOrEmpty(s.Trigger) &&
+                (s.Trigger.StartsWith(trigger, StringComparison.Ordinal) || trigger.StartsWith(s.Trigger, StringComparison.Ordinal))))
+                throw new ArgumentException("触发词不能重复，也不能互为前缀");
+        }
+        snippet = snippet with { Trigger = trigger };
         var index = State.Snippets.FindIndex(s => s.Id == snippet.Id);
         if (index < 0 && State.Snippets.Count >= MaxSnippets)
             throw new ArgumentException("最多保存 500 个片段，请先删除不再使用的片段。");

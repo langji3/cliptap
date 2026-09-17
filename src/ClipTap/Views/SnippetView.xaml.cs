@@ -16,6 +16,7 @@ public partial class SnippetView : UserControl
         _app = app; _original = snippet;
         InitializeComponent();
         TitleInput.Text = snippet?.Title ?? "";
+        TriggerInput.Text = snippet?.Trigger ?? "";
         ValueInput.Text = snippet?.Value ?? "";
         SensitiveInput.IsChecked = snippet?.IsSensitive ?? false;
         PinnedInput.IsChecked = snippet?.IsPinned ?? false;
@@ -51,7 +52,7 @@ public partial class SnippetView : UserControl
         if (string.IsNullOrWhiteSpace(TitleInput.Text)) { ErrorLabel.Text = "请输入标题"; TitleInput.Focus(); return; }
         if (string.IsNullOrEmpty(value)) { ErrorLabel.Text = "请输入内容"; return; }
         var result = new Snippet(_original?.Id ?? Guid.NewGuid(), TitleInput.Text.Trim(), value,
-            SensitiveInput.IsChecked == true, PinnedInput.IsChecked == true, DateTimeOffset.Now);
+            SensitiveInput.IsChecked == true, PinnedInput.IsChecked == true, DateTimeOffset.Now, TriggerInput.Text);
         try
         {
             if (_app.TryUpdateLibrary(library => library.SaveSnippet(result))) Finished?.Invoke();

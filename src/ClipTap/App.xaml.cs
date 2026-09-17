@@ -19,6 +19,7 @@ public partial class App : System.Windows.Application
     private ClipboardService? _clipboard;
     private ThemeService? _theme;
     private DesktopEvents? _events;
+    private ExpansionService? _expansion;
     private SystemHistoryService? _history;
     private bool _ownsMutex;
     private bool _dirty;
@@ -70,6 +71,10 @@ public partial class App : System.Windows.Application
         _clipboard = new ClipboardService();
         InitializeHistory(new WindowsHistorySource());
         CreateTray();
+        _expansion = new ExpansionService(() => Dispatcher.BeginInvoke(new Action(() =>
+            Notify("自动替换未完成，已暂停。请检查输入框；可在托盘恢复。"))));
+        _expansion.Configure(Library.State.Snippets);
+        if (!_expansion.Available) Notify("自动替换监听不可用，仍可通过面板粘贴片段。");
         try { _events = new DesktopEvents(() => Panel.ToggleFromHotkey()); }
         catch (Win32Exception ex)
         {
@@ -86,6 +91,14 @@ public partial class App : System.Windows.Application
         menu.Items.Add("打开 ClipTap    Alt+空格", null, (_, _) => Panel.OpenPanel(captureTarget: false));
         menu.Items.Add("Windows 剪贴板设置", null, (_, _) => OpenSystemClipboardSettings());
         menu.Items.Add("设置", null, (_, _) => { Panel.OpenPanel(captureTarget: false); Panel.ShowSettings(); });
+        var pauseExpansion = new Forms.ToolStripMenuItem("暂停自动替换");
+        menu.Items.Add(pauseExpansion);
+        menu.Opening += (_, _) =>
+        {
+            pauseExpansion.Enabled = _expansion?.Available == true;
+            pauseExpansion.Text = _expansion?.Paused == true ? "恢复自动替换" : "暂停自动替换";
+        };
+        pauseExpansion.Click += (_, _) => { if (_expansion is not null) _expansion.Paused = !_expansion.Paused; };
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出 ClipTap", null, (_, _) => Quit());
         _tray = new Forms.NotifyIcon { Text = "ClipTap · Alt+空格", Icon = CreateIcon(), Visible = true, ContextMenuStrip = menu };
@@ -185,6 +198,7 @@ public partial class App : System.Windows.Application
         {
             _store!.Save(candidate.State);
             Library = candidate;
+            _expansion?.Configure(candidate.State.Snippets);
             _dirty = false;
             _saveTimer?.Stop();
             return true;
@@ -214,6 +228,7 @@ public partial class App : System.Windows.Application
         SaveNow();
         _saveTimer?.Stop();
         _events?.Dispose();
+        _expansion?.Dispose();
         _history?.Dispose();
         _clipboard?.Dispose();
         _theme?.Dispose();
