@@ -57,7 +57,7 @@ internal static class ExpansionIntegration
         return app.Run(window);
     }
 
-    internal static async Task VerifyAsync()
+    internal static async Task VerifyAsync(bool correctionsOnly = false)
     {
         var name = "ClipTap.Expansion.Tests." + Guid.NewGuid().ToString("N");
         using var pipe = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
@@ -96,6 +96,27 @@ internal static class ExpansionIntegration
                 if (actual != text) throw new InvalidOperationException($"Expansion fixture result did not match expected synthetic text (length {actual?.Length}; unchanged trigger: {actual == "seed:!253pass"})");
             }
             async Task Reset() { await writer.WriteLineAsync("reset"); await reader.ReadLineAsync(timeout.Token); }
+            if (correctionsOnly)
+            {
+                service.Configure([snippet with { Trigger = "!abc" }]);
+                // Delete valid prefix characters, then type them again.
+                await Prefix(); await Letter(0x42); await Letter(8);
+                await Letter(0x42); await Letter(0x43); await Expect("seed:" + snippet.Value);
+                // A mistyped suffix must be fully deleted before matching can resume.
+                await Reset(); await Prefix(); await Letter(0x58); await Letter(0x59);
+                await Letter(8); await Letter(8); await Letter(0x42); await Letter(0x43);
+                await Expect("seed:" + snippet.Value);
+                // Holding Backspace produces repeated key-downs with only one key-up.
+                await Reset(); await Prefix(); await Letter(0x58); await Letter(0x59);
+                await Key(8); await Key(8); await Key(8, true);
+                await Letter(0x42); await Letter(0x43); await Expect("seed:" + snippet.Value);
+                // Navigation invalidates correction state even if the caret is restored.
+                await Reset(); await Prefix(); await Letter(0x58);
+                await Letter(0x25); await Letter(0x27); await Letter(8);
+                await Letter(0x42); await Letter(0x43); await Expect("seed:!abc");
+            }
+            else
+            {
             await Prefix(); await Letter(0x42); await Expect("seed:" + snippet.Value);
             await Reset(); service.Paused = true;
             await Prefix(); await Letter(0x42); await Expect("seed:!ab");
@@ -123,6 +144,7 @@ internal static class ExpansionIntegration
             await Key(0xA0); await Letter(0x31); await Key(0xA0, true);
             foreach (var key in new ushort[] { 0x32, 0x35, 0x33, 0x50, 0x41, 0x53, 0x53 }) await Letter(key);
             await Expect("seed:" + snippet.Value);
+            }
             if (failures != 0 || clipboardSequence != NativeMethods.GetClipboardSequenceNumber())
                 throw new InvalidOperationException("Expansion reported failure or clipboard changed");
             await writer.WriteLineAsync("exit"); await process.WaitForExitAsync(timeout.Token);

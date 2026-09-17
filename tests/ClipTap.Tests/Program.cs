@@ -56,6 +56,36 @@ internal static class Program
             Check(Feed("!hzpass") is null);
             matcher.Configure([]); Check(Feed("!hzpass") is null);
         });
+        Test("Expansion: backspace corrects valid prefixes and multiple mistyped characters", () =>
+        {
+            var matcher = new ExpansionMatcher();
+            var snippet = Snippet("Correction", "synthetic-secret", sensitive: true) with { Trigger = "!253pass" };
+            matcher.Configure([snippet]); long time = 0;
+            Snippet? Feed(string value) { Snippet? result = null; foreach (var c in value) result = matcher.Feed(c, time += 30); return result; }
+            void Back(int count) { for (var i = 0; i < count; i++) matcher.Backspace(time += 30); }
+            Feed("!253pa"); Back(2); Equal(snippet, Feed("pass"));
+            Feed("!259xy"); Back(3); Equal(snippet, Feed("3pass"));
+            Feed("!253pX"); Check(Feed("ass") is null); Back(4); Equal(snippet, Feed("ass"));
+            Feed("!253"); Back(5); Check(Feed("253pass") is null); Equal(snippet, Feed("!253pass"));
+            // Successful expansion has no retained prefix to resurrect with Backspace.
+            Back(1); Check(Feed("s") is null);
+        });
+        Test("Expansion: correction cannot survive reset, timeout, non-ASCII or excessive input", () =>
+        {
+            var matcher = new ExpansionMatcher();
+            var snippet = Snippet("Correction", "value") with { Trigger = "!ab" };
+            matcher.Configure([snippet]); long time = 0;
+            Snippet? Feed(string value) { Snippet? result = null; foreach (var c in value) result = matcher.Feed(c, time += 30); return result; }
+            void Back(int count) { for (var i = 0; i < count; i++) matcher.Backspace(time += 30); }
+            Feed("!ax"); matcher.Reset(); Back(1); Check(Feed("b") is null);
+            Feed("!ax"); time += 6000; Back(1); Check(Feed("b") is null);
+            Feed("!ax"); time = 0; Back(1); Check(Feed("b") is null);
+            Feed("!ax"); matcher.Configure([snippet]); Back(1); Check(Feed("b") is null);
+            foreach (var boundary in new[] { " ", "\n", "中", "🔑" })
+            { Feed("!a" + boundary); Back(boundary.Length); Check(Feed("b") is null); }
+            Feed("!a" + new string('x', 64)); Back(64); Check(Feed("b") is null);
+            Equal(snippet, Feed("!ab"));
+        });
         Test("Expansion: sensitive numeric trigger and English IME conversion modes", () =>
         {
             var snippet = Snippet("Synthetic", "synthetic-secret", sensitive: true) with { Trigger = "!253pass" };
@@ -508,6 +538,8 @@ internal static class Program
             Test("Cross-process: restore a real input focus and paste", PasteIntegration.Verify);
         if (args.Contains("--expansion-integration"))
             Test("Cross-process: keyboard expansion preserves surrounding text and clipboard", () => Await(ExpansionIntegration.VerifyAsync()));
+        if (args.Contains("--expansion-correction-integration"))
+            Test("Cross-process: backspace correction, repeated deletion and navigation reset", () => Await(ExpansionIntegration.VerifyAsync(correctionsOnly: true)));
         Console.WriteLine($"\n{_passed} passed, {_failed} failed. Screenshots: {artifactDirectory}");
         return _failed == 0 ? 0 : 1;
     }

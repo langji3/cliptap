@@ -109,8 +109,8 @@ internal sealed class ExpansionService : IDisposable
             var configuration = Volatile.Read(ref _configuration);
             if (!ReferenceEquals(configuration, _applied))
             { _matcher.Configure(configuration); _applied = configuration; Reset(); }
-            if (_paused || _stopping || repeated || configuration.Length == 0 ||
-                key.Key is < 0x20 or 0x7F || key.Key is >= 0x21 and <= 0x2F ||
+            if (_paused || _stopping || (repeated && key.Key != 8) || configuration.Length == 0 ||
+                (key.Key < 0x20 && key.Key != 8) || key.Key == 0x7F || key.Key is >= 0x21 and <= 0x2F ||
                 key.Key is >= 0x70 and <= 0x87 ||
                 new[] { 0x11, 0x12, 0x5B, 0x5C, 0x01, 0x02, 0x04, 0x05, 0x06 }.Any(Held) ||
                 key.Key is 0x11 or 0x12 or 0x5B or 0x5C or >= 0xA2 and <= 0xA5)
@@ -124,8 +124,13 @@ internal sealed class ExpansionService : IDisposable
             if (!IsDirectInput(target.Focus, layout))
             { Reset(); return CallNextHookEx(0, code, message, data); }
             if (target != _target || layout != _layout) { Reset(); _target = target; _layout = layout; }
-            var state = new byte[256];
             var shift = Held(0x10) || _pressed.Contains(0xA0) || _pressed.Contains(0xA1);
+            if (key.Key == 8)
+            {
+                if (shift) Reset(); else _matcher.Backspace(Environment.TickCount64);
+                return CallNextHookEx(0, code, message, data); // The target still performs the deletion.
+            }
+            var state = new byte[256];
             state[0x10] = shift ? (byte)0x80 : (byte)0;
             state[0x14] = _caps ? (byte)1 : (byte)0;
             state[key.Key] |= 0x80;
