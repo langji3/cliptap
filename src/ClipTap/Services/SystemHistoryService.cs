@@ -85,14 +85,14 @@ internal sealed class WindowsHistorySource : ISystemHistorySource
     internal static async Task<BitmapSource> DecodeThumbnailAsync(IRandomAccessStream stream)
     {
         var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(stream);
-        var scale = Math.Min(1, Math.Min(160.0 / decoder.PixelWidth, 96.0 / decoder.PixelHeight));
-        var width = Math.Max(1u, (uint)(decoder.PixelWidth * scale));
-        var height = Math.Max(1u, (uint)(decoder.PixelHeight * scale));
-        var transform = new Windows.Graphics.Imaging.BitmapTransform { ScaledWidth = width, ScaledHeight = height };
+        // Keep the source pixels; WPF scales only the presentation to the card and monitor DPI.
+        var width = checked((int)decoder.PixelWidth);
+        var height = checked((int)decoder.PixelHeight);
+        var transform = new Windows.Graphics.Imaging.BitmapTransform();
         var pixels = await decoder.GetPixelDataAsync(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
             Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied, transform,
             Windows.Graphics.Imaging.ExifOrientationMode.IgnoreExifOrientation, Windows.Graphics.Imaging.ColorManagementMode.DoNotColorManage);
-        var bitmap = BitmapSource.Create((int)width, (int)height, 96, 96, PixelFormats.Pbgra32, null, pixels.DetachPixelData(), (int)width * 4);
+        var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Pbgra32, null, pixels.DetachPixelData(), checked(width * 4));
         bitmap.Freeze();
         return bitmap;
     }

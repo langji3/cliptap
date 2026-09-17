@@ -322,23 +322,23 @@ internal static class Program
             var clear = history.ClearAsync(); Await(clear); Check(!clear.Result);
         });
         BitmapSource? imagePreview = null;
-        Test("Images: native decoder bounds wide/tall thumbnails and handles alpha", () =>
+        Test("Images: native decoder preserves original dimensions, pixels and alpha", () =>
         {
             foreach (var (width, height) in new[] { (1200, 600), (4, 400), (1, 1) })
             {
                 var pixels = new byte[width * height * 4];
                 for (var i = 0; i < pixels.Length; i += 4)
-                { pixels[i] = 180; pixels[i + 1] = 120; pixels[i + 2] = 40; pixels[i + 3] = width == 1 ? (byte)128 : (byte)255; }
+                { pixels[i] = (byte)((i / 4) % 256); pixels[i + 1] = 120; pixels[i + 2] = 40; pixels[i + 3] = width == 1 ? (byte)128 : (byte)255; }
                 var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
                 var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using var memory = new MemoryStream(); encoder.Save(memory); memory.Position = 0;
                 using var stream = memory.AsRandomAccessStream();
                 var decode = WindowsHistorySource.DecodeThumbnailAsync(stream); Await(decode);
                 var thumbnail = decode.Result;
-                Check(thumbnail.IsFrozen); Check(thumbnail.PixelWidth <= 160 && thumbnail.PixelHeight <= 96);
-                Check(thumbnail.PixelWidth > 0 && thumbnail.PixelHeight > 0);
+                Check(thumbnail.IsFrozen); Equal(width, thumbnail.PixelWidth); Equal(height, thumbnail.PixelHeight);
+                if (width > 1) { var decoded = new byte[pixels.Length]; thumbnail.CopyPixels(decoded, width * 4, 0); Check(pixels.SequenceEqual(decoded)); }
                 if (width == 1) { var pixel = new byte[4]; thumbnail.CopyPixels(pixel, 4, 0); Equal((byte)128, pixel[3]); Check(pixel[0] <= 91); }
-                if (width == 1200) { Equal(160, thumbnail.PixelWidth); Equal(80, thumbnail.PixelHeight); imagePreview = thumbnail; }
+                if (width == 1200) imagePreview = thumbnail;
             }
         });
         Test("Images: mixed rows, missing preview, restore original identity and expired-item failure", () =>

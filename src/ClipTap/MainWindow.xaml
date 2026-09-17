@@ -66,7 +66,7 @@
                 <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
-                  <Image Source="{Binding Thumbnail}" MaxWidth="160" Height="80" Stretch="Uniform" HorizontalAlignment="Left">
+                  <Image Source="{Binding Thumbnail}" MaxWidth="160" Height="80" Stretch="Uniform" HorizontalAlignment="Left" RenderOptions.BitmapScalingMode="HighQuality">
                     <Image.Style><Style TargetType="Image"><Style.Triggers><DataTrigger Binding="{Binding Thumbnail}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Image.Style>
                   </Image>
                   <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="13">
