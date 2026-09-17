@@ -44,10 +44,11 @@
           <Button x:Name="ClearHistoryButton" Content="全部清除" HorizontalAlignment="Right" Padding="10,4" FontSize="11" Click="OnClearHistory" />
         </Grid>
         <Grid Grid.Row="2" Margin="12,4,12,0">
-          <ListBox x:Name="Entries" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Ink}"
+          <ListBox x:Name="Entries" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Ink}" FocusVisualStyle="{x:Null}"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
                    SelectionMode="Single" PreviewMouseLeftButtonUp="OnEntryClick" AutomationProperties.Name="条目列表">
             <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem">
+              <Setter Property="FocusVisualStyle" Value="{x:Null}" />
               <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
               <Setter Property="Foreground" Value="{DynamicResource Ink}" /><Setter Property="HorizontalContentAlignment" Value="Stretch" />
               <Setter Property="Padding" Value="10,8" /><Setter Property="Margin" Value="0,3" />
