@@ -11,14 +11,14 @@
       <Grid x:Name="HeaderDragArea" Background="Transparent" Cursor="SizeAll" MouseLeftButtonDown="OnHeaderDrag">
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
           <Border x:Name="BrandIcon" Width="30" Height="30" CornerRadius="9" Background="{DynamicResource BrandGradient}" BorderBrush="#40FFFFFF" BorderThickness="1" Margin="0,0,10,0">
-            <Viewbox Width="30" Height="30"><Canvas Width="64" Height="64">
-              <Path Data="M24,18 L21,18 Q17,18 17,23 L17,50 Q17,55 22,55 L44,55 Q49,55 49,50 L49,23 Q49,18 44,18 L42,18" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-              <Rectangle Canvas.Left="25" Canvas.Top="11" Width="16" Height="13" RadiusX="4" RadiusY="4" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" />
-              <Path Data="M26,35 L40,35 M26,44 L35,44" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+            <Viewbox Stretch="Uniform"><Canvas Width="64" Height="64">
+              <Path Data="M23,17 L20,17 Q16,17 16,22 L16,49 Q16,54 21,54 L43,54 Q48,54 48,49 L48,22 Q48,17 43,17 L41,17" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+              <Rectangle Canvas.Left="24" Canvas.Top="10" Width="16" Height="13" RadiusX="4" RadiusY="4" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" />
+              <Path Data="M25,34 L39,34 M25,43 L34,43" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
             </Canvas></Viewbox>
           </Border>
           <Button x:Name="BackButton" Style="{StaticResource IconButton}" Visibility="Collapsed" Margin="-6,0,8,0" ToolTip="返回" AutomationProperties.Name="返回" Click="OnBack">
-            <Path Data="M14,5 L7,12 L14,19" Width="20" Height="24" Stroke="{DynamicResource Ink}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+            <Path Data="M14,5 L7,12 L14,19" Width="9" Height="16" Stretch="Uniform" Stroke="{DynamicResource Ink}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
           </Button>
           <TextBlock x:Name="PageTitle" Text="ClipTap" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
@@ -74,7 +74,9 @@
                   </TextBlock>
                 </StackPanel>
                 <StackPanel Grid.Column="1" VerticalAlignment="Top">
-                  <Button Content="⋯" Style="{StaticResource IconButton}" Width="28" Height="26" FontSize="18" ToolTip="更多" AutomationProperties.Name="更多操作" Click="OnMore" />
+                  <Button Style="{StaticResource IconButton}" Width="28" Height="26" ToolTip="更多" AutomationProperties.Name="更多操作" Click="OnMore">
+                    <StackPanel Orientation="Horizontal"><Ellipse Width="2" Height="2" Fill="{DynamicResource Ink}" /><Ellipse Width="2" Height="2" Margin="4,0" Fill="{DynamicResource Ink}" /><Ellipse Width="2" Height="2" Fill="{DynamicResource Ink}" /></StackPanel>
+                  </Button>
                   <Ellipse Width="5" Height="5" Fill="{DynamicResource Accent}" Margin="5,0,0,0"><Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Pinned}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Ellipse.Style></Ellipse>
                 </StackPanel>
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Right" Margin="0,8,0,0">

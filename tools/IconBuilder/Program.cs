@@ -7,7 +7,7 @@ Directory.CreateDirectory(directory);
 var sizes = new[] { 16, 20, 24, 32, 48, 64, 128, 256 };
 var images = sizes.Select(size =>
 {
-    using var bitmap = IconArtwork.Render(size, Color.FromArgb(40, 120, 93));
+    using var bitmap = IconArtwork.Render(size, IconArtwork.DefaultAccent);
     using var stream = new MemoryStream(); bitmap.Save(stream, ImageFormat.Png); return stream.ToArray();
 }).ToArray();
 using (var output = new BinaryWriter(File.Create(Path.Combine(directory, "cliptap.ico"))))

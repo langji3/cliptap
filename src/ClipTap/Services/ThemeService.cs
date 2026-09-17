@@ -26,7 +26,7 @@ internal sealed class ThemeService : IDisposable
         dispatcher.BeginInvoke(() => { if (_mode == AppearanceMode.System) { ApplyTheme(_mode, _accent); Changed?.Invoke(); } });
     }
 
-    internal static void ApplyTheme(AppearanceMode mode, AccentPalette accent = AccentPalette.Green)
+    internal static void ApplyTheme(AppearanceMode mode, AccentPalette accent = AccentPalette.Blue)
     {
         var dark = mode == AppearanceMode.Dark || mode == AppearanceMode.System && SystemUsesDarkTheme();
         var palette = accent switch
@@ -74,7 +74,12 @@ internal sealed class ThemeService : IDisposable
         Gradient("CardGradient", Neutral(dark ? "#2D333F" : "#FFFFFF"), Mix(Neutral(dark ? "#252A34" : "#FAFBFD"), glow, .035));
         Gradient("CardSelectedGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .13), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .07));
         Gradient("CardHoverGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .24), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .15));
-        Gradient("BrandGradient", Mix(hue, glow, .52), Mix(hue, Neutral("#111D3D"), .24));
+        var brand = accent == AccentPalette.Blue ? Neutral("#6CA5E8") : hue;
+        resources["BrandColor"] = new SolidColorBrush(brand);
+        if (accent == AccentPalette.Blue)
+            Gradient("BrandGradient", Mix(brand, Neutral("#FFFFFF"), .18), brand);
+        else
+            Gradient("BrandGradient", Mix(hue, glow, .52), Mix(hue, Neutral("#111D3D"), .24));
         Gradient("ActionGradient", Mix((Color)ColorConverter.ConvertFromString(palette[dark ? 1 : 0]), Neutral("#FFFFFF"), .12), (Color)ColorConverter.ConvertFromString(palette[dark ? 1 : 0]));
         Gradient("TabGradient", Neutral(dark ? "#465162" : "#FFFFFF"), Neutral(dark ? "#353E4D" : "#F5F8FC"));
         resources["CardLine"] = new SolidColorBrush(Neutral(dark ? "#414958" : "#E0E6EE"));

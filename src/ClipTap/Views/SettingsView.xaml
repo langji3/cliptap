@@ -31,6 +31,15 @@
         <CheckBox x:Name="StartupInput" Content="开机启动" Margin="0,6,0,14" />
         <Button Content="Windows 剪贴板设置" HorizontalAlignment="Left" Background="Transparent" Padding="0,8" Margin="0,0,0,10" Click="OnSystemSettings" />
         <Button x:Name="ClearButton" Content="清空 Windows 历史" HorizontalAlignment="Left" Background="Transparent" Foreground="{DynamicResource Danger}" Padding="0,8" Click="OnClear" />
+        <StackPanel x:Name="UpdatePanel" Visibility="Collapsed" Margin="0,18,0,0">
+          <Border Height="1" Background="{DynamicResource Line}" Margin="0,0,0,14" />
+          <Grid>
+            <TextBlock x:Name="VersionLabel" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" />
+            <Button x:Name="CheckUpdateButton" Content="检查更新" HorizontalAlignment="Right" Click="OnCheckUpdate" />
+          </Grid>
+          <TextBlock x:Name="UpdateStatusLabel" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource Muted}" />
+          <Button x:Name="OpenReleaseButton" Content="前往下载新版本" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnOpenRelease" />
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
     <TextBlock x:Name="ErrorLabel" Grid.Row="1" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,8,0,4" />

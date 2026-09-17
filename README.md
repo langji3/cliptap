@@ -4,15 +4,25 @@
 
 按 **Alt + 空格** 唤起，左右切换剪贴板与快捷片段，上下选择，回车粘贴。也支持鼠标单击插入。用完即收起，平时留在托盘。
 
-> 当前为 0.1 原型。Windows 原生 WPF 界面；不依赖浏览器运行时，不连接云端，不上传剪贴板。
+> 当前版本为 0.1.0。Windows 原生 WPF 界面；不依赖浏览器运行时，不上传剪贴板。仅安装版在用户主动检查更新时访问 GitHub 版本接口。
 
-支持 **浅色 / 深色 / 跟随系统**，默认使用浅色；**蓝 / 绿 / 紫** 三种主题色可独立组合。设置里切换即可预览，保存后记住选择；返回会恢复原主题和主题色。列表、编辑、设置均在同一浮窗内切换，删除和清空使用页内确认。
+支持 **浅色 / 深色 / 跟随系统**，首次使用默认浅色和蓝色主题，图标使用浅蓝色；**蓝 / 绿 / 紫** 三种主题色可独立组合。设置里切换即可预览，保存后记住选择；返回会恢复原主题和主题色。列表、编辑、设置均在同一浮窗内切换，删除和清空使用页内确认。
 
 | 浅色 · 蓝 | 深色 · 紫 |
 | --- | --- |
 | ![浅色蓝色主题](docs/images/clipboard-light-blue.png) | ![深色紫色主题](docs/images/clipboard-dark-purple.png) |
 
 ## 使用
+
+### 下载和安装
+
+正式版本从 [GitHub Releases](https://github.com/langji3/cliptap/releases/latest) 下载。首次使用推荐下载 [EXE 安装包](https://github.com/langji3/cliptap/releases/latest/download/ClipTap-win-x64-setup.exe)，免安装可选 [便携版](https://github.com/langji3/cliptap/releases/latest/download/ClipTap-win-x64-portable.zip)。[GitHub Actions](https://github.com/langji3/cliptap/actions) 的成功构建另提供开发构建产物，需登录 GitHub 下载。
+
+- **安装版**：下载并双击 `ClipTap-win-x64-setup.exe`，按中文向导选择安装位置并完成安装。完成页默认勾选“安装后运行 ClipTap”，启动后驻留托盘，不弹主窗口。不创建桌面或开始菜单快捷方式；支持在 Windows“已安装的应用”卸载。自带运行时，无需管理员权限。
+- **便携版**：下载 `ClipTap-win-x64-portable.zip`，完整解压到固定目录后启动 `ClipTap.exe`。自带运行时，不安装、不提供检查更新。
+- **轻量包**：`ClipTap-win-x64-framework-dependent.zip` 需要先安装 .NET 10 Desktop Runtime（x64）。同样解压运行，不提供检查更新。
+
+安装版设置页提供“检查更新”，有新版本时打开对应 Release 下载页。退出托盘程序后，双击新版 `ClipTap-win-x64-setup.exe` 完成覆盖升级。检查更新不上传片段内容，不自动下载或执行更新；网络异常和未发布 Release 会显示状态。卸载保留已保存片段和设置。
 
 1. 在 Windows 设置 → 系统 → 剪贴板中开启「剪贴板历史记录」（也可通过 `Win+V` 开启）。
 2. 启动 `ClipTap.exe`，程序驻留托盘；列表直接读取 Windows 已有的文本和图片历史，复制、删除、保留策略由系统管理。
@@ -68,6 +78,9 @@ powershell -ExecutionPolicy Bypass -File scripts/publish.ps1
 
 # 独立运行包，包含 .NET 运行时，体积更大
 powershell -ExecutionPolicy Bypass -File scripts/publish.ps1 -SelfContained
+
+# EXE 安装向导，包含运行时和检查更新入口
+powershell -ExecutionPolicy Bypass -File scripts/package-installed.ps1
 ```
 
 产物在 `artifacts/`。发布包先解压到固定位置再开启「登录 Windows 时启动」。移动或删除程序后，应重新配置或关闭开机启动。默认不修改开机启动。
@@ -93,11 +106,13 @@ CI 执行默认测试，交互桌面的跨应用粘贴需要在真实环境另�
 ## 已知边界与后续
 
 - 尚未实现文件历史、搜索、云同步和自定义快捷键。
-- 自动替换需要目标控件支持 Windows Unicode 输入。中文组词状态或输入法状态无法确认时跳过；若输入法英文模式仍不可用，可通过 Win+空格切换英文键盘布局。终端、远程桌面、自动完成或拦截按键的自定义控件仍需兼容性验证。部分输入失败可能留下不完整文字；不会继续删除或自动重试，请检查输入框后在托盘恢复。
+- 自动替换需要目标控件支持 Windows Unicode 输入。支持中文输入法的半角英文模式，即使输入法仍报告为开启；中文组词、全角/特殊转换模式或输入法状态无法确认时跳过。若输入法英文模式仍不可用，可通过 Win+空格切换英文键盘布局。终端、远程桌面、自动完成或拦截按键的自定义控件仍需兼容性验证。部分输入失败可能留下不完整文字；不会继续删除或自动重试，请检查输入框后在托盘恢复。
 - 默认快捷键被其他应用占用时，会提示改用托盘。
 - Windows 可能阻止向管理员窗口发送输入；当前版本不请求管理员权限。
 - 不同应用对 Ctrl+V、输入焦点的处理不同；多屏不同缩放、终端、浏览器和远程桌面仍需进一步兼容性验证。
 - 尚未提供签名安装器和自动更新。
+
+发布维护：安装包的 GitHub Release 附件名称应为 `ClipTap-win-x64-setup.exe`，稳定版标签使用 `v主版本.次版本.修订号`，并与项目 `Version` 一致。设置页只检查带安装包的稳定新版；尚未发布时显示“暂未发布正式版本”。构建首次运行时自动下载并校验 Inno Setup 编译器，缓存到 `artifacts/tools`，或使用 `INNO_SETUP_COMPILER` 指定本机 `ISCC.exe`。
 
 ## 结构
 

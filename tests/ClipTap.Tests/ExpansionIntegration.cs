@@ -36,6 +36,19 @@ internal static class ExpansionIntegration
                     if (command == "reset") { input.Text = "seed:"; input.CaretIndex = input.Text.Length; }
                     if (command == "focus-away") second.Focus();
                     if (command == "focus-back") { input.Focus(); input.CaretIndex = input.Text.Length; }
+                    if (command == "ime-english")
+                    {
+                        System.Windows.Input.InputMethod.SetIsInputMethodEnabled(input, true);
+                        System.Windows.Input.InputMethod.SetPreferredImeState(input, System.Windows.Input.InputMethodState.On);
+                        System.Windows.Input.InputMethod.SetPreferredImeConversionMode(input, System.Windows.Input.ImeConversionModeValues.Alphanumeric);
+                        second.Focus(); input.Focus(); input.CaretIndex = input.Text.Length;
+                        var ime = ImmGetDefaultIMEWnd(new WindowInteropHelper(window).Handle);
+                        SendMessage(ime, 0x283, 2, 0); // Half-width alphanumeric, including ASCII punctuation.
+                        var open = SendMessage(ime, 0x283, 5, 0);
+                        var mode = SendMessage(ime, 0x283, 1, 0);
+                        await writer.WriteLineAsync($"Fixture IME: open={open}, conversion={mode}");
+                        continue;
+                    }
                     await writer.WriteLineAsync(JsonSerializer.Serialize(input.Text));
                 }
             }
@@ -80,7 +93,7 @@ internal static class ExpansionIntegration
             {
                 await Task.Delay(150); await writer.WriteLineAsync("read");
                 var actual = JsonSerializer.Deserialize<string>((await reader.ReadLineAsync(timeout.Token))!);
-                if (actual != text) throw new InvalidOperationException("Expansion fixture result did not match expected synthetic text");
+                if (actual != text) throw new InvalidOperationException($"Expansion fixture result did not match expected synthetic text (length {actual?.Length}; unchanged trigger: {actual == "seed:!253pass"})");
             }
             async Task Reset() { await writer.WriteLineAsync("reset"); await reader.ReadLineAsync(timeout.Token); }
             await Prefix(); await Letter(0x42); await Expect("seed:" + snippet.Value);
@@ -102,10 +115,21 @@ internal static class ExpansionIntegration
             await Prefix(); await Letter(0x42); await Expect("seed:updated");
             await Reset(); service.Configure([]);
             await Prefix(); await Letter(0x42); await Expect("seed:!ab");
+            await Reset(); service.Configure([snippet with { Trigger = "!253pass" }]);
+            await writer.WriteLineAsync("ime-english");
+            var imeStatus = await reader.ReadLineAsync(timeout.Token);
+            if (imeStatus != "Fixture IME: open=1, conversion=0") throw new InvalidOperationException("Fixture could not enter open, half-width English IME mode: " + imeStatus);
+            Console.WriteLine(imeStatus); await Task.Delay(150);
+            await Key(0xA0); await Letter(0x31); await Key(0xA0, true);
+            foreach (var key in new ushort[] { 0x32, 0x35, 0x33, 0x50, 0x41, 0x53, 0x53 }) await Letter(key);
+            await Expect("seed:" + snippet.Value);
             if (failures != 0 || clipboardSequence != NativeMethods.GetClipboardSequenceNumber())
                 throw new InvalidOperationException("Expansion reported failure or clipboard changed");
             await writer.WriteLineAsync("exit"); await process.WaitForExitAsync(timeout.Token);
         }
         finally { if (!process.HasExited) process.Kill(); }
     }
+
+    [DllImport("imm32.dll")] private static extern nint ImmGetDefaultIMEWnd(nint window);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern nint SendMessage(nint window, uint message, nuint command, nint value);
 }

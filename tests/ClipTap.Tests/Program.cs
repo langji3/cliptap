@@ -24,6 +24,7 @@ internal static class Program
     {
         if (args.Length == 2 && args[0] == "--paste-fixture") return PasteIntegration.RunFixture(args[1]);
         if (args.Length == 2 && args[0] == "--expansion-fixture") return ExpansionIntegration.RunFixture(args[1]);
+        Test("Updates: installed version checks, portable isolation, release validation and failures", () => Await(UpdateTests.VerifyAsync()));
         Test("Expansion: trigger validation, conflicts and removal", () =>
         {
             var library = NewLibrary();
@@ -54,6 +55,18 @@ internal static class Program
             matcher.Configure([snippet, snippet with { Id = Guid.NewGuid(), Trigger = "!hz" }]);
             Check(Feed("!hzpass") is null);
             matcher.Configure([]); Check(Feed("!hzpass") is null);
+        });
+        Test("Expansion: sensitive numeric trigger and English IME conversion modes", () =>
+        {
+            var snippet = Snippet("Synthetic", "synthetic-secret", sensitive: true) with { Trigger = "!253pass" };
+            var matcher = new ExpansionMatcher(); matcher.Configure([snippet]);
+            Snippet? result = null; long time = 0;
+            foreach (var character in snippet.Trigger) result = matcher.Feed(character, time += 30);
+            Equal(snippet, result);
+            foreach (nuint mode in new nuint[] { 0, 0x10, 0x80, 0x100, 0x190 })
+                Check(ExpansionService.IsDirectConversionMode(mode));
+            foreach (nuint mode in new nuint[] { 1, 9, 8, 0x20, 0x200, 0x400, 0x800, 0x1000, 0x11 })
+                Check(!ExpansionService.IsDirectConversionMode(mode));
         });
         Test("Expansion: old JSON and encrypted trigger round trip", () =>
         {
@@ -96,7 +109,7 @@ internal static class Program
             Equal(40, candidate.State.History.Count); Equal(40, library.State.History.Count);
             Equal(100, library.State.Settings.HistoryLimit); Check(!library.State.Settings.CapturePaused);
             Equal(AppearanceMode.Light, library.State.Settings.Theme);
-            Equal(AccentPalette.Purple, candidate.State.Settings.Accent); Equal(AccentPalette.Green, library.State.Settings.Accent);
+            Equal(AccentPalette.Purple, candidate.State.Settings.Accent); Equal(AccentPalette.Blue, library.State.Settings.Accent);
         });
         Test("Snippets: updates preserve identity and pinned items sort first", () =>
         {
@@ -262,8 +275,8 @@ internal static class Program
             Click(panel, "BackButton");
             Check(((SolidColorBrush)panel.Background).Color.R < 128);
             Equal(AppearanceMode.Dark, app.Library.State.Settings.Theme);
-            Equal(AccentPalette.Green, app.Library.State.Settings.Accent);
-            Equal((Color)ColorConverter.ConvertFromString("#77CDA6"), ((SolidColorBrush)app.Resources["Accent"]).Color);
+            Equal(AccentPalette.Blue, app.Library.State.Settings.Accent);
+            Equal((Color)ColorConverter.ConvertFromString("#80B2FF"), ((SolidColorBrush)app.Resources["Accent"]).Color);
             ThemeService.ApplyTheme(AppearanceMode.Light);
             Check(((SolidColorBrush)panel.Background).Color.R > 128);
             panel.Hide();
@@ -454,14 +467,15 @@ internal static class Program
             Button RowButton(string label)
             {
                 panel.UpdateLayout();
-                return Descendants<Button>((DependencyObject)list.ItemContainerGenerator.ContainerFromIndex(0)).Single(b => Equals(b.Content, label));
+                return Descendants<Button>((DependencyObject)list.ItemContainerGenerator.ContainerFromIndex(0)).Single(b =>
+                    Equals(b.Content, label) || System.Windows.Automation.AutomationProperties.GetName(b) == label);
             }
-            var more = RowButton("⋯");
+            var more = RowButton("更多操作");
             more.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.PreviewMouseUpEvent });
             Check(panel.IsVisible);
             more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Check(((EntryRow)list.Items[0]).ActionsOpen);
             SendKey(panel, Key.Escape); Check(panel.IsVisible); Check(!((EntryRow)list.Items[0]).ActionsOpen);
-            RowButton("⋯").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            RowButton("更多操作").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             RowButton("删除").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             var confirmation = (InlineConfirmation)panel.FindName("Confirmation");
             Check(confirmation.IsOpen); Check(historySource.DeletedId is null);
@@ -470,7 +484,7 @@ internal static class Program
             historySource.DeleteResult = false; Click(confirmation, "ConfirmButton");
             Equal(1, app.History.Count); Equal("删除失败，请重试", ((TextBlock)panel.FindName("StatusLabel")).Text);
             historySource.DeleteResult = true;
-            RowButton("⋯").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            RowButton("更多操作").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             RowButton("删除").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Click(confirmation, "ConfirmButton");
             Equal<Guid?>(id, historySource.DeletedId); Equal(0, app.History.Count);
             Check(!((Button)panel.FindName("ClearHistoryButton")).IsEnabled);

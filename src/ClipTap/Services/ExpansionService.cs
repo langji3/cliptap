@@ -187,8 +187,17 @@ internal sealed class ExpansionService : IDisposable
         var ime = ImmGetDefaultIMEWnd(window);
         var language = (long)layout & 0x3FF;
         if (ime == 0) return language is not (0x04 or 0x11 or 0x12); // unknown CJK status: fail closed
-        return SendMessageTimeout(ime, 0x283, 5, 0, 2, 15, out var open) != 0 && open == 0;
+        if (SendMessageTimeout(ime, 0x283, 5, 0, 2, 15, out var open) == 0) return false;
+        if (open == 0) return true;
+        // Chinese IMEs can remain open in English mode (including Chromium input fields).
+        // Open status alone does not tell us whether keys will enter composition.
+        return SendMessageTimeout(ime, 0x283, 1, 0, 2, 15, out var mode) != 0 && IsDirectConversionMode(mode);
     }
+
+    internal static bool IsDirectConversionMode(nuint mode) =>
+        // Only alphanumeric/half-width input; allow Roman, soft keyboard and no-conversion flags.
+        // Reject native, full-width, character-code, symbol and unknown conversion modes.
+        (mode & ~(nuint)(0x10 | 0x80 | 0x100)) == 0;
 
     public void Dispose() { _stopping = true; if (_thread.Join(1500)) _ready.Dispose(); }
 

@@ -107,7 +107,7 @@ public partial class App : System.Windows.Application
 
     private static Icon CreateIcon()
     {
-        var accent = ((System.Windows.Media.SolidColorBrush)Current.Resources["Accent"]).Color;
+        var accent = ((System.Windows.Media.SolidColorBrush)Current.Resources["BrandColor"]).Color;
         using var bitmap = IconArtwork.Render(32, Color.FromArgb(accent.R, accent.G, accent.B));
         var handle = bitmap.GetHicon();
         try { using var original = Icon.FromHandle(handle); return (Icon)original.Clone(); }

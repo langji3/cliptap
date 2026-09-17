@@ -13,7 +13,7 @@ public sealed class Library
             throw new InvalidDataException("不支持的数据格式。请保留原文件并检查应用版本。");
         State = state;
         if (!Enum.IsDefined(State.Settings.Theme)) State.Settings.Theme = AppearanceMode.Light;
-        if (!Enum.IsDefined(State.Settings.Accent)) State.Settings.Accent = AccentPalette.Green;
+        if (!Enum.IsDefined(State.Settings.Accent)) State.Settings.Accent = AccentPalette.Blue;
         State.Snippets = state.Snippets
             .Where(s => s is not null && !string.IsNullOrWhiteSpace(s.Title) && s.Value is not null)
             .DistinctBy(s => s.Id).Take(MaxSnippets).ToList();

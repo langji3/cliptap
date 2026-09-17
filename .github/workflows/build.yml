@@ -22,6 +22,13 @@ jobs:
         with:
           name: ClipTap-win-x64
           path: artifacts/ClipTap-win-x64-framework-dependent.zip
+      - name: Package installed build
+        shell: pwsh
+        run: ./scripts/package-installed.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClipTap-win-x64-setup
+          path: artifacts/ClipTap-win-x64-setup.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:

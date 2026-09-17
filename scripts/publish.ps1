@@ -4,12 +4,15 @@ Push-Location $projectRoot
 try {
     $flavor = if ($SelfContained) { 'portable' } else { 'framework-dependent' }
     $output = Join-Path $projectRoot "artifacts/ClipTap-win-x64-$flavor"
-    $publishArgs = @('publish', 'src/ClipTap/ClipTap.csproj', '-c', 'Release', '-r', 'win-x64', '-o', $output, '--nologo', '-p:DebugType=None', '-p:DebugSymbols=false')
+    $publishArgs = @('publish', 'src/ClipTap/ClipTap.csproj', '-c', 'Release', '-r', 'win-x64', '-o', $output, '--nologo', '-p:ClipTapDistribution=Portable', '-p:DebugType=None', '-p:DebugSymbols=false')
     if ($SelfContained) { $publishArgs += '--self-contained' } else { $publishArgs += '--no-self-contained' }
     & $dotnet @publishArgs
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
     Copy-Item -LiteralPath (Join-Path $projectRoot 'LICENSE'), (Join-Path $projectRoot 'README.md') -Destination $output
     $archive = "$output.zip"
-    Compress-Archive -Path "$output/*" -DestinationPath $archive -Force
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $temporaryArchive = "$output-$([Guid]::NewGuid().ToString('N')).zip"
+    [IO.Compression.ZipFile]::CreateFromDirectory($output, $temporaryArchive)
+    Move-Item -LiteralPath $temporaryArchive -Destination $archive -Force
     Write-Output $archive
 } finally { Pop-Location }

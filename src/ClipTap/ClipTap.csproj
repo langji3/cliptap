@@ -8,10 +8,12 @@
     <AssemblyName>ClipTap</AssemblyName>
     <RootNamespace>ClipTap</RootNamespace>
     <Version>0.1.0</Version>
+    <ClipTapDistribution Condition="'$(ClipTapDistribution)' == ''">Portable</ClipTapDistribution>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/cliptap.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <AssemblyMetadata Include="ClipTapDistribution" Value="$(ClipTapDistribution)" />
     <ProjectReference Include="../ClipTap.Core/ClipTap.Core.csproj" />
     <Resource Include="Assets/cliptap.ico" />
   </ItemGroup>
