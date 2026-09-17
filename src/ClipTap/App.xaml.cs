@@ -207,6 +207,14 @@ public partial class App : System.Windows.Application
         { return false; }
     }
 
+    internal bool QuitForUpdate(string installer)
+    {
+        if (!SaveNow()) return false;
+        File.WriteAllText(Path.Combine(Path.GetDirectoryName(installer)!, "ready.commit"), "install");
+        ExitNow();
+        return true;
+    }
+
     internal void Quit()
     {
         if (!SaveNow())

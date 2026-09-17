@@ -38,7 +38,9 @@
             <Button x:Name="CheckUpdateButton" Content="检查更新" HorizontalAlignment="Right" Click="OnCheckUpdate" />
           </Grid>
           <TextBlock x:Name="UpdateStatusLabel" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource Muted}" />
-          <Button x:Name="OpenReleaseButton" Content="前往下载新版本" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnOpenRelease" />
+          <Button x:Name="InstallUpdateButton" Content="立即更新" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnInstallUpdate" />
+          <Button x:Name="CancelUpdateButton" Content="取消下载" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnCancelUpdate" />
+          <Button x:Name="OpenReleaseButton" Content="前往下载页" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnOpenRelease" />
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

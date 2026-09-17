@@ -6,7 +6,8 @@ using System.Text.Json;
 namespace ClipTap.Services;
 
 internal enum UpdateStatus { Disabled, Current, Available, NoRelease, Unavailable }
-internal sealed record UpdateResult(UpdateStatus Status, string? Version = null, Uri? ReleaseUrl = null);
+internal sealed record UpdateResult(UpdateStatus Status, string? Version = null, Uri? ReleaseUrl = null,
+    Uri? DownloadUrl = null, string? Sha256 = null, long Size = 0);
 
 internal sealed class UpdateService
 {
@@ -55,12 +56,22 @@ internal sealed class UpdateService
         var normalized = new Version(version.Major, version.Minor, version.Build, Math.Max(0, version.Revision));
         var baseline = new Version(current.Major, current.Minor, Math.Max(0, current.Build), Math.Max(0, current.Revision));
         if (normalized <= baseline) return new(UpdateStatus.Current);
-        if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array ||
-            !assets.EnumerateArray().Any(a => a.ValueKind == JsonValueKind.Object &&
-                a.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() == AssetName))
+        if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
             return new(UpdateStatus.Unavailable);
+        var asset = assets.EnumerateArray().FirstOrDefault(a => a.ValueKind == JsonValueKind.Object &&
+            a.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() == AssetName);
+        if (asset.ValueKind != JsonValueKind.Object) return new(UpdateStatus.Unavailable);
         // Construct the known repository URL instead of trusting arbitrary links in remote JSON.
         var url = new Uri("https://github.com/langji3/cliptap/releases/tag/" + Uri.EscapeDataString(tag.GetString()!));
-        return new(UpdateStatus.Available, version.ToString(), url);
+        // A release without a GitHub SHA-256 digest can still be downloaded manually.
+        if (!asset.TryGetProperty("digest", out var digest) || digest.ValueKind != JsonValueKind.String ||
+            digest.GetString() is not { } hash || !hash.StartsWith("sha256:", StringComparison.Ordinal) ||
+            hash.Length != 71 || !hash.AsSpan(7).ToString().All(Uri.IsHexDigit) ||
+            !asset.TryGetProperty("size", out var size) || !size.TryGetInt64(out var length) ||
+            length <= 0 || length > UpdateInstaller.MaximumSize)
+            return new(UpdateStatus.Available, version.ToString(), url);
+        var download = new Uri("https://github.com/langji3/cliptap/releases/download/" +
+            Uri.EscapeDataString(tag.GetString()!) + "/" + AssetName);
+        return new(UpdateStatus.Available, version.ToString(), url, download, hash[7..], length);
     }
 }

@@ -19,6 +19,7 @@ public partial class SettingsView : UserControl
     private bool _ready, _saved;
     private readonly UpdateService _updates = new();
     private Uri? _releaseUrl;
+    private UpdateResult? _availableUpdate;
     private CancellationTokenSource? _updateCancellation;
     internal event Action? Finished;
     internal bool IsDropDownOpen => ThemeInput.IsDropDownOpen;
@@ -112,6 +113,8 @@ public partial class SettingsView : UserControl
         _updateCancellation = cancellation;
         CheckUpdateButton.IsEnabled = false;
         OpenReleaseButton.Visibility = Visibility.Collapsed;
+        InstallUpdateButton.Visibility = Visibility.Collapsed;
+        _availableUpdate = null;
         _releaseUrl = null;
         UpdateStatusLabel.Text = "正在检查…";
         try
@@ -119,6 +122,7 @@ public partial class SettingsView : UserControl
             var result = await _updates.CheckAsync(cancellation.Token);
             if (cancellation.IsCancellationRequested) { UpdateStatusLabel.Text = "检查已取消，可重试"; return; }
             _releaseUrl = result.ReleaseUrl;
+            _availableUpdate = result.DownloadUrl is null ? null : result;
             UpdateStatusLabel.Text = result.Status switch
             {
                 UpdateStatus.Current => "已是最新版本",
@@ -127,9 +131,52 @@ public partial class SettingsView : UserControl
                 _ => "暂时无法检查更新，请稍后重试"
             };
             OpenReleaseButton.Visibility = _releaseUrl is null ? Visibility.Collapsed : Visibility.Visible;
+            InstallUpdateButton.Visibility = _availableUpdate is null ? Visibility.Collapsed : Visibility.Visible;
         }
         finally { _updateCancellation = null; CheckUpdateButton.IsEnabled = true; }
     }
+
+    private async void OnInstallUpdate(object sender, RoutedEventArgs e)
+    {
+        if (_availableUpdate is not { } update || _updateCancellation is not null) return;
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+        _updateCancellation = cancellation;
+        CheckUpdateButton.IsEnabled = InstallUpdateButton.IsEnabled = false;
+        CancelUpdateButton.Visibility = Visibility.Visible;
+        string? installer = null;
+        try
+        {
+            UpdateStatusLabel.Text = "正在下载更新…";
+            installer = await UpdateInstaller.DownloadAsync(update, new Progress<int>(percent =>
+            {
+                if (!cancellation.IsCancellationRequested) UpdateStatusLabel.Text = $"正在下载更新 {percent}%";
+            }), cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (!_app.SaveNow()) { UpdateStatusLabel.Text = "保存失败，未开始安装，请重试"; return; }
+            UpdateStatusLabel.Text = "校验通过，正在更新，完成后会自动回到托盘…";
+            CancelUpdateButton.Visibility = Visibility.Collapsed;
+            await UpdateInstaller.StartAsync(installer, update.Sha256!);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (!_app.QuitForUpdate(installer)) UpdateStatusLabel.Text = "保存失败，未开始安装，请重试";
+        }
+        catch (OperationCanceledException) { UpdateStatusLabel.Text = "更新已取消或下载超时，可重试"; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException or
+            System.ComponentModel.Win32Exception or InvalidOperationException)
+        { UpdateStatusLabel.Text = "更新未完成，可重试或前往下载页手动升级"; }
+        finally
+        {
+            if (!_app.IsQuitting && installer is not null)
+            {
+                try { File.Delete(installer); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+            _updateCancellation = null;
+            CheckUpdateButton.IsEnabled = InstallUpdateButton.IsEnabled = true;
+            CancelUpdateButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnCancelUpdate(object sender, RoutedEventArgs e) => _updateCancellation?.Cancel();
 
     private void OnOpenRelease(object sender, RoutedEventArgs e)
     {
