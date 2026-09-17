@@ -46,7 +46,7 @@ internal sealed class ThemeService : IDisposable
             ["Field"] = dark ? "#252D35" : "#FFFFFF",
             ["TabSurface"] = dark ? "#39434C" : "#FFFFFF",
             ["ButtonSurface"] = dark ? "#354052" : "#E7EDF5",
-            ["Hover"] = dark ? "#2B3640" : "#F0F4F1",
+            ["Hover"] = palette[dark ? 3 : 2],
             ["Selected"] = palette[dark ? 3 : 2],
             ["SelectedBorder"] = palette[dark ? 5 : 4],
             ["Line"] = dark ? "#3D4854" : "#D9E3DD",
@@ -73,6 +73,7 @@ internal sealed class ThemeService : IDisposable
         Gradient("PanelGradient", Mix(Neutral(dark ? "#20242D" : "#F4F7FB"), glow, dark ? .09 : .12), Neutral(dark ? "#171B23" : "#EEF1F6"));
         Gradient("CardGradient", Neutral(dark ? "#2D333F" : "#FFFFFF"), Mix(Neutral(dark ? "#252A34" : "#FAFBFD"), glow, .035));
         Gradient("CardSelectedGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .13), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .07));
+        Gradient("CardHoverGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .24), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .15));
         Gradient("BrandGradient", Mix(hue, glow, .52), Mix(hue, Neutral("#111D3D"), .24));
         Gradient("ActionGradient", Mix((Color)ColorConverter.ConvertFromString(palette[dark ? 1 : 0]), Neutral("#FFFFFF"), .12), (Color)ColorConverter.ConvertFromString(palette[dark ? 1 : 0]));
         Gradient("TabGradient", Neutral(dark ? "#465162" : "#FFFFFF"), Neutral(dark ? "#353E4D" : "#F5F8FC"));
