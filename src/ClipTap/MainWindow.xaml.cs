@@ -103,8 +103,8 @@ public partial class MainWindow : Window
         if (_menuId.HasValue) { rows = rows.Select(r => r with { ActionsOpen = r.Id == _menuId }).ToList(); Entries.ItemsSource = rows; }
         Entries.SelectedItem = rows.FirstOrDefault(r => r.Id == selected) ?? rows.FirstOrDefault();
         if (Entries.SelectedItem is not null) Entries.ScrollIntoView(Entries.SelectedItem);
-        if (_tab == 0) HistoryTab.SetResourceReference(BackgroundProperty, "TabSurface"); else HistoryTab.Background = Brushes.Transparent;
-        if (_tab == 1) SnippetsTab.SetResourceReference(BackgroundProperty, "TabSurface"); else SnippetsTab.Background = Brushes.Transparent;
+        if (_tab == 0) HistoryTab.SetResourceReference(BackgroundProperty, "TabGradient"); else HistoryTab.Background = Brushes.Transparent;
+        if (_tab == 1) SnippetsTab.SetResourceReference(BackgroundProperty, "TabGradient"); else SnippetsTab.Background = Brushes.Transparent;
         HistoryTab.FontWeight = _tab == 0 ? FontWeights.SemiBold : FontWeights.Normal;
         SnippetsTab.FontWeight = _tab == 1 ? FontWeights.SemiBold : FontWeights.Normal;
         SnippetActions.Visibility = _tab == 1 ? Visibility.Visible : Visibility.Collapsed;

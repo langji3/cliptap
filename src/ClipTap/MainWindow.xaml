@@ -4,17 +4,17 @@
         WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
         PreviewKeyDown="OnKeyDown" Deactivated="OnDeactivated" Closing="OnClosing"
         UseLayoutRounding="True" SnapsToDevicePixels="True">
-  <Border x:Name="PanelSurface" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="10" Background="{DynamicResource Page}" RenderTransformOrigin="0.5,0.45">
+  <Border x:Name="PanelSurface" BorderBrush="{DynamicResource CardLine}" BorderThickness="1" CornerRadius="10" Background="{DynamicResource PanelGradient}" RenderTransformOrigin="0.5,0.45">
     <Border.RenderTransform><TransformGroup><ScaleTransform x:Name="EntranceScale" /><TranslateTransform x:Name="EntranceOffset" /></TransformGroup></Border.RenderTransform>
     <Grid>
       <Grid.RowDefinitions><RowDefinition Height="66" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
       <Grid x:Name="HeaderDragArea" Background="Transparent" Cursor="SizeAll" MouseLeftButtonDown="OnHeaderDrag">
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
-          <Border x:Name="BrandIcon" Width="30" Height="30" CornerRadius="9" Background="{DynamicResource Accent}" Margin="0,0,10,0">
+          <Border x:Name="BrandIcon" Width="30" Height="30" CornerRadius="9" Background="{DynamicResource BrandGradient}" BorderBrush="#40FFFFFF" BorderThickness="1" Margin="0,0,10,0">
             <Viewbox Width="30" Height="30"><Canvas Width="64" Height="64">
-              <Path Data="M24,18 L21,18 Q17,18 17,23 L17,50 Q17,55 22,55 L44,55 Q49,55 49,50 L49,23 Q49,18 44,18 L42,18" Stroke="{DynamicResource OnAccent}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-              <Rectangle Canvas.Left="25" Canvas.Top="11" Width="16" Height="13" RadiusX="4" RadiusY="4" Stroke="{DynamicResource OnAccent}" StrokeThickness="4" />
-              <Path Data="M26,35 L40,35 M26,44 L35,44" Stroke="{DynamicResource OnAccent}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+              <Path Data="M24,18 L21,18 Q17,18 17,23 L17,50 Q17,55 22,55 L44,55 Q49,55 49,50 L49,23 Q49,18 44,18 L42,18" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+              <Rectangle Canvas.Left="25" Canvas.Top="11" Width="16" Height="13" RadiusX="4" RadiusY="4" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" />
+              <Path Data="M26,35 L40,35 M26,44 L35,44" Stroke="{DynamicResource LogoInk}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
             </Canvas></Viewbox>
           </Border>
           <Button x:Name="BackButton" Style="{StaticResource IconButton}" Visibility="Collapsed" Margin="-6,0,8,0" ToolTip="返回" AutomationProperties.Name="返回" Click="OnBack">
@@ -24,7 +24,7 @@
         </StackPanel>
         <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Margin="0,0,18,0" HorizontalAlignment="Right" ToolTip="设置" AutomationProperties.Name="设置" Click="OnSettings">
           <Canvas Width="22" Height="22">
-            <Path Data="M3,5 L19,5 M3,11 L19,11 M3,17 L19,17" Stroke="{DynamicResource Muted}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+            <Path Data="M3,5 L19,5 M3,11 L19,11 M3,17 L19,17" Stroke="{DynamicResource Accent}" Opacity="0.7" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
             <Ellipse Canvas.Left="6" Canvas.Top="2.5" Width="5" Height="5" Fill="{DynamicResource Page}" Stroke="{DynamicResource Muted}" StrokeThickness="1.5" />
             <Ellipse Canvas.Left="12" Canvas.Top="8.5" Width="5" Height="5" Fill="{DynamicResource Page}" Stroke="{DynamicResource Muted}" StrokeThickness="1.5" />
             <Ellipse Canvas.Left="5" Canvas.Top="14.5" Width="5" Height="5" Fill="{DynamicResource Page}" Stroke="{DynamicResource Muted}" StrokeThickness="1.5" />
@@ -54,10 +54,10 @@
               <Setter Property="Padding" Value="10,8" /><Setter Property="Margin" Value="0,3" />
               <Setter Property="MinHeight" Value="76" />
               <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
-                <Border x:Name="Row" Background="{DynamicResource Field}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}"><ContentPresenter /></Border>
+                <Border x:Name="Row" Background="{DynamicResource CardGradient}" BorderBrush="{DynamicResource CardLine}" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}"><ContentPresenter /></Border>
                 <ControlTemplate.Triggers>
                   <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Row" Property="Background" Value="{DynamicResource Hover}" /></Trigger>
-                  <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource Ink}" /></Trigger>
+                  <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource Accent}" /><Setter TargetName="Row" Property="Background" Value="{DynamicResource CardSelectedGradient}" /></Trigger>
                 </ControlTemplate.Triggers>
               </ControlTemplate></Setter.Value></Setter>
             </Style></ListBox.ItemContainerStyle>

@@ -37,15 +37,15 @@ internal sealed class ThemeService : IDisposable
         };
         var colors = new Dictionary<string, string>
         {
-            ["Ink"] = dark ? "#E6EEE9" : "#202F2A",
-            ["Muted"] = dark ? "#A0B0A7" : "#718078",
+            ["Ink"] = dark ? "#E9EDF5" : "#253044",
+            ["Muted"] = dark ? "#A6AFC0" : "#69778D",
             ["Accent"] = palette[dark ? 1 : 0],
             ["OnAccent"] = dark ? "#182127" : "#FFFFFF",
             ["Page"] = dark ? "#1D2228" : "#FAFCFA",
-            ["Chrome"] = dark ? "#272F38" : "#ECF1ED",
+            ["Chrome"] = dark ? "#242B37" : "#E5EBF3",
             ["Field"] = dark ? "#252D35" : "#FFFFFF",
             ["TabSurface"] = dark ? "#39434C" : "#FFFFFF",
-            ["ButtonSurface"] = dark ? "#34404B" : "#EEF3EF",
+            ["ButtonSurface"] = dark ? "#354052" : "#E7EDF5",
             ["Hover"] = dark ? "#2B3640" : "#F0F4F1",
             ["Selected"] = palette[dark ? 3 : 2],
             ["SelectedBorder"] = palette[dark ? 5 : 4],
@@ -59,6 +59,25 @@ internal sealed class ThemeService : IDisposable
             var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(value));
             brush.Freeze(); resources[key] = brush;
         }
+        // Keep chroma in highlights; neutral surfaces carry the text and visual hierarchy.
+        var hue = (Color)ColorConverter.ConvertFromString(palette[0]);
+        var glow = (Color)ColorConverter.ConvertFromString(palette[1]);
+        Color Neutral(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+        Color Mix(Color a, Color b, double amount) => Color.FromRgb(
+            (byte)(a.R + (b.R - a.R) * amount), (byte)(a.G + (b.G - a.G) * amount), (byte)(a.B + (b.B - a.B) * amount));
+        void Gradient(string key, Color start, Color end)
+        {
+            var brush = new LinearGradientBrush(start, end, new Point(0, 0), new Point(1, 1));
+            brush.Freeze(); resources[key] = brush;
+        }
+        Gradient("PanelGradient", Mix(Neutral(dark ? "#20242D" : "#F4F7FB"), glow, dark ? .09 : .12), Neutral(dark ? "#171B23" : "#EEF1F6"));
+        Gradient("CardGradient", Neutral(dark ? "#2D333F" : "#FFFFFF"), Mix(Neutral(dark ? "#252A34" : "#FAFBFD"), glow, .035));
+        Gradient("CardSelectedGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .13), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .07));
+        Gradient("BrandGradient", Mix(hue, glow, .52), Mix(hue, Neutral("#111D3D"), .24));
+        Gradient("ActionGradient", Mix((Color)ColorConverter.ConvertFromString(palette[dark ? 1 : 0]), Neutral("#FFFFFF"), .12), (Color)ColorConverter.ConvertFromString(palette[dark ? 1 : 0]));
+        Gradient("TabGradient", Neutral(dark ? "#465162" : "#FFFFFF"), Neutral(dark ? "#353E4D" : "#F5F8FC"));
+        resources["CardLine"] = new SolidColorBrush(Neutral(dark ? "#414958" : "#E0E6EE"));
+        resources["LogoInk"] = Brushes.White;
         foreach (Window window in System.Windows.Application.Current.Windows) ApplyTitleBar(window);
     }
 

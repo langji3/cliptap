@@ -5,7 +5,7 @@
       <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" /><Setter Property="Margin" Value="5,0,0,0" /><Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
         <Border x:Name="Ring" BorderBrush="Transparent" BorderThickness="2" CornerRadius="16" Padding="4">
-          <Ellipse Fill="{TemplateBinding Background}" />
+          <Grid><Ellipse Fill="{TemplateBinding Background}" /><Ellipse><Ellipse.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#60FFFFFF" Offset="0" /><GradientStop Color="#00FFFFFF" Offset="0.5" /><GradientStop Color="#250C1830" Offset="1" /></LinearGradientBrush></Ellipse.Fill></Ellipse></Grid>
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property="IsChecked" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource Ink}" /></Trigger>
@@ -35,6 +35,6 @@
     </ScrollViewer>
     <TextBlock x:Name="ErrorLabel" Grid.Row="1" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,8,0,4" />
     <local:InlineConfirmation x:Name="Confirmation" Grid.Row="2" />
-    <Button x:Name="SaveButton" Grid.Row="3" Content="保存" HorizontalAlignment="Right" MinWidth="76" Margin="0,8,0,0" Background="{DynamicResource Accent}" Foreground="{DynamicResource OnAccent}" Click="OnSave" />
+    <Button x:Name="SaveButton" Grid.Row="3" Content="保存" HorizontalAlignment="Right" MinWidth="76" Margin="0,8,0,0" Background="{DynamicResource ActionGradient}" Foreground="{DynamicResource OnAccent}" Click="OnSave" />
   </Grid>
 </UserControl>
