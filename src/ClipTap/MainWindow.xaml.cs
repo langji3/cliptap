@@ -57,6 +57,7 @@ public partial class MainWindow : Window
         PanelSurface.BeginAnimation(OpacityProperty, null);
         PanelSurface.Opacity = entering && _app.AnimatePanel ? 0 : 1;
         Show();
+        PlaceNearTarget();
         NativeMethods.SetForegroundWindow(_handle);
         Activate();
         if (entering && _app.AnimatePanel)
@@ -86,11 +87,19 @@ public partial class MainWindow : Window
         var monitor = NativeMethods.MonitorFromWindow(anchor, 2);
         var info = new NativeMethods.MonitorInfo { Size = Marshal.SizeOf<NativeMethods.MonitorInfo>() };
         if (!NativeMethods.GetMonitorInfo(monitor, ref info)) return;
-        var dpi = NativeMethods.GetDpiForWindow(anchor);
-        var scale = dpi > 0 ? dpi / 96.0 : 1;
-        Left = info.Work.Left / scale + Math.Max(0, ((info.Work.Right - info.Work.Left) / scale - Width) / 2);
-        Top = info.Work.Top / scale + Math.Max(0, ((info.Work.Bottom - info.Work.Top) / scale - Height) / 3);
+        // Screen origins are physical pixels, not WPF DIPs. First move onto the target
+        // monitor so WPF processes its DPI change, then measure and position in pixels.
+        const uint moveOnly = 0x0001 | 0x0004 | 0x0010; // NOSIZE | NOZORDER | NOACTIVATE
+        if (NativeMethods.MonitorFromWindow(_handle, 2) != monitor)
+            NativeMethods.SetWindowPos(_handle, 0, info.Work.Left, info.Work.Top, 0, 0, moveOnly);
+        if (!NativeMethods.GetWindowRect(_handle, out var bounds)) return;
+        var position = PanelPosition(info.Work, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top);
+        NativeMethods.SetWindowPos(_handle, 0, position.X, position.Y, 0, 0, moveOnly);
     }
+
+    internal static (int X, int Y) PanelPosition(NativeMethods.Rect work, int width, int height) =>
+        (work.Left + Math.Max(0, (work.Right - work.Left - width) / 2),
+         work.Top + Math.Max(0, (work.Bottom - work.Top - height) / 3));
 
     private async Task LoadHistoryAsync() { await _app.RefreshSystemHistoryAsync(); RefreshHistory(); }
 

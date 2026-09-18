@@ -206,6 +206,12 @@ internal static class Program
             SendMessage(events.Handle, PriorityHotkey.Message, nint.Zero, nint.Zero);
             Equal(2, hotkeys);
         });
+        Test("Placement: physical monitor origins, scaled sizes and negative coordinates", () =>
+        {
+            Equal((2510, 160), MainWindow.PanelPosition(new NativeMethods.Rect { Left = 1920, Top = 0, Right = 3840, Bottom = 1600 }, 740, 1120));
+            Equal((-1180, -220), MainWindow.PanelPosition(new NativeMethods.Rect { Left = -1920, Top = -480, Right = 0, Bottom = 1080 }, 440, 780));
+            Equal((0, 0), MainWindow.PanelPosition(new NativeMethods.Rect { Right = 320, Bottom = 400 }, 380, 560));
+        });
         Test("Hotkey: capture chord, suppress repeat, release ordering and preserve other shortcuts", () =>
         {
             foreach (var altFirst in new[] { false, true })

@@ -7,7 +7,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>ClipTap</AssemblyName>
     <RootNamespace>ClipTap</RootNamespace>
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <ClipTapDistribution Condition="'$(ClipTapDistribution)' == ''">Portable</ClipTapDistribution>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/cliptap.ico</ApplicationIcon>
