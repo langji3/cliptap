@@ -29,6 +29,8 @@ public partial class App : System.Windows.Application
     internal ClipboardService ClipboardService => _clipboard!;
     internal bool IsQuitting { get; private set; }
     internal bool HotkeyAvailable => _events?.HotkeyAvailable ?? true;
+    internal string HotkeyLabel => Library.State.Settings.WakeHotkey.ToString();
+    internal void RecordHotkey(Action<WakeHotkey>? callback) => _events?.Record(callback);
     internal bool AnimatePanel => !_testHost && SystemParameters.ClientAreaAnimation;
     internal HistoryStatus HistoryStatus => _history?.Snapshot.Status ?? HistoryStatus.Unavailable;
     internal IReadOnlyList<HistoryEntry> History => (_history?.Snapshot.Items ?? [])
@@ -51,7 +53,7 @@ public partial class App : System.Windows.Application
         _instance = new Mutex(true, @"Local\ClipTap." + Environment.UserName, out _ownsMutex);
         if (!_ownsMutex)
         {
-            MessageBox.Show("ClipTap 已在运行。按 Alt+空格 唤起，或点击托盘图标。", "ClipTap");
+            MessageBox.Show("ClipTap 已在运行，请按已设置的唤醒快捷键，或点击托盘图标。", "ClipTap");
             Shutdown(); return;
         }
         var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClipTap");
@@ -75,33 +77,34 @@ public partial class App : System.Windows.Application
             Notify("自动替换未完成，已暂停。请检查输入框；可在托盘恢复。"))));
         _expansion.Configure(Library.State.Snippets);
         if (!_expansion.Available) Notify("自动替换监听不可用，仍可通过面板粘贴片段。");
-        try { _events = new DesktopEvents(() => Panel.ToggleFromHotkey()); }
+        try { _events = new DesktopEvents(() => Panel.ToggleFromHotkey(), Library.State.Settings.WakeHotkey); }
         catch (Win32Exception ex)
         {
             MessageBox.Show("无法创建快捷键监听：" + ex.Message, "ClipTap", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1); return;
         }
-        if (!HotkeyAvailable) Notify("Alt+空格 已被占用。请先通过托盘打开 ClipTap，或关闭占用此快捷键的应用。");
+        if (!HotkeyAvailable) Notify($"{HotkeyLabel} 已被占用。请通过托盘打开设置修改快捷键。");
         if (!e.Args.Contains("--background")) Panel.OpenPanel(captureTarget: false);
     }
 
     private void CreateTray()
     {
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("打开 ClipTap    Alt+空格", null, (_, _) => Panel.OpenPanel(captureTarget: false));
+        menu.Items.Add("打开 ClipTap    " + HotkeyLabel, null, (_, _) => Panel.OpenPanel(captureTarget: false));
         menu.Items.Add("Windows 剪贴板设置", null, (_, _) => OpenSystemClipboardSettings());
         menu.Items.Add("设置", null, (_, _) => { Panel.OpenPanel(captureTarget: false); Panel.ShowSettings(); });
         var pauseExpansion = new Forms.ToolStripMenuItem("暂停自动替换");
         menu.Items.Add(pauseExpansion);
         menu.Opening += (_, _) =>
         {
+            menu.Items[0].Text = "打开 ClipTap    " + HotkeyLabel;
             pauseExpansion.Enabled = _expansion?.Available == true;
             pauseExpansion.Text = _expansion?.Paused == true ? "恢复自动替换" : "暂停自动替换";
         };
         pauseExpansion.Click += (_, _) => { if (_expansion is not null) _expansion.Paused = !_expansion.Paused; };
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出 ClipTap", null, (_, _) => Quit());
-        _tray = new Forms.NotifyIcon { Text = "ClipTap · Alt+空格", Icon = CreateIcon(), Visible = true, ContextMenuStrip = menu };
+        _tray = new Forms.NotifyIcon { Text = "ClipTap · " + HotkeyLabel, Icon = CreateIcon(), Visible = true, ContextMenuStrip = menu };
         _tray.MouseClick += (_, args) => { if (args.Button == Forms.MouseButtons.Left) Panel.OpenPanel(captureTarget: false); };
     }
 
@@ -183,7 +186,18 @@ public partial class App : System.Windows.Application
     }
 
     internal bool TrySaveSettings(AppSettings settings)
-        => TryCommit(Library.WithSettings(settings));
+        => TrySaveSettings(settings, out _);
+
+    internal bool TrySaveSettings(AppSettings settings, out string error)
+    {
+        error = "";
+        if (settings.WakeHotkey?.IsValid != true) { error = "快捷键格式无效"; return false; }
+        var saved = _events is null ? TryCommit(Library.WithSettings(settings)) :
+            _events.TryChange(settings.WakeHotkey, () => TryCommit(Library.WithSettings(settings)), out error);
+        if (!saved && error.Length == 0) error = "保存失败，请重试";
+        if (saved && _tray is not null) _tray.Text = "ClipTap · " + HotkeyLabel;
+        return saved;
+    }
 
     internal bool TryUpdateLibrary(Action<Library> update)
     {

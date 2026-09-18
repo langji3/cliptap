@@ -11,6 +11,7 @@ public sealed class AppSettings
     public AccentPalette Accent { get; set; } = AccentPalette.Blue;
     public int HistoryLimit { get; set; } = 100;
     public bool CapturePaused { get; set; }
+    public WakeHotkey WakeHotkey { get; set; } = WakeHotkey.Default;
 }
 
 public enum AppearanceMode { System, Light, Dark }

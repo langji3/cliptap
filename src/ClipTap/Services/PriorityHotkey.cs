@@ -28,7 +28,8 @@ internal sealed class PriorityHotkey : IDisposable
     private readonly Thread _thread;
     private readonly Hook _callback;
     private readonly ManualResetEventSlim _ready = new();
-    private readonly HotkeyGesture _gesture = new();
+    private HotkeyGesture _gesture = new();
+    internal volatile bool Suspended;
     private volatile bool _stop;
     internal bool Available { get; private set; }
     internal const int Message = 0x8000 + 71;
@@ -62,6 +63,7 @@ internal sealed class PriorityHotkey : IDisposable
     private nint OnKeyboard(int code, nuint message, nint data)
     {
         if (code < 0 || _stop) return CallNextHookEx(0, code, message, data);
+        if (Suspended) { _gesture = new(); return CallNextHookEx(0, code, message, data); }
         var key = Marshal.PtrToStructure<KeyboardEvent>(data);
         if ((key.Flags & 0x10) != 0) return CallNextHookEx(0, code, message, data);
         var down = message is 0x100 or 0x104;

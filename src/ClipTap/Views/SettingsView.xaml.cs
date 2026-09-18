@@ -1,5 +1,6 @@
 using System.Security;
 using System.Windows.Controls;
+using System.Windows.Input;
 using ClipTap.Core;
 using ClipTap.Services;
 
@@ -16,6 +17,8 @@ public partial class SettingsView : UserControl
     private readonly AppearanceMode _originalTheme;
     private readonly AccentPalette _originalAccent;
     private AccentPalette _accent;
+    private WakeHotkey _wakeHotkey;
+    internal bool IsRecordingHotkey { get; private set; }
     private bool _ready, _saved;
     private readonly UpdateService _updates = new();
     private Uri? _releaseUrl;
@@ -29,10 +32,12 @@ public partial class SettingsView : UserControl
         _app = app;
         _originalTheme = app.Library.State.Settings.Theme;
         _originalAccent = _accent = app.Library.State.Settings.Accent;
+        _wakeHotkey = app.Library.State.Settings.WakeHotkey;
         InitializeComponent();
+        HotkeyButton.Content = _wakeHotkey.ToString();
         UpdatePanel.Visibility = UpdateService.IsInstalled ? Visibility.Visible : Visibility.Collapsed;
         VersionLabel.Text = "ClipTap " + UpdateService.VersionText;
-        Unloaded += (_, _) => _updateCancellation?.Cancel();
+        Unloaded += (_, _) => { _updateCancellation?.Cancel(); StopRecording(); };
         ThemeInput.ItemsSource = new[] { new ThemeChoice(AppearanceMode.Light, "浅色"), new ThemeChoice(AppearanceMode.Dark, "深色"), new ThemeChoice(AppearanceMode.System, "跟随系统") };
         ThemeInput.SelectedValue = _originalTheme;
         (FindName(_accent + "Accent") as RadioButton)!.IsChecked = true;
@@ -44,6 +49,7 @@ public partial class SettingsView : UserControl
 
     internal void Discard()
     {
+        StopRecording();
         Confirmation.Dismiss();
         if (!_saved) _app.PreviewTheme(_originalTheme, _originalAccent);
     }
@@ -61,6 +67,7 @@ public partial class SettingsView : UserControl
 
     internal void Save()
     {
+        StopRecording();
         string? originalCommand = null;
         var startupChanged = false;
         try
@@ -76,10 +83,11 @@ public partial class SettingsView : UserControl
                 HistoryLimit = _app.Library.State.Settings.HistoryLimit,
                 CapturePaused = _app.Library.State.Settings.CapturePaused,
                 Theme = ThemeInput.SelectedValue is AppearanceMode mode ? mode : AppearanceMode.Light,
-                Accent = _accent
+                Accent = _accent,
+                WakeHotkey = _wakeHotkey
             };
-            if (_app.TrySaveSettings(settings)) { _saved = true; Finished?.Invoke(); }
-            else ErrorLabel.Text = "保存失败，请重试";
+            if (_app.TrySaveSettings(settings, out var error)) { _saved = true; Finished?.Invoke(); }
+            else ErrorLabel.Text = error;
         }
         catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException or IOException or InvalidOperationException)
         { ErrorLabel.Text = ex.Message; }
@@ -93,6 +101,42 @@ public partial class SettingsView : UserControl
             }
         }
     }
+
+    private void OnRecordHotkey(object sender, RoutedEventArgs e)
+    {
+        if (IsRecordingHotkey) { StopRecording(); return; }
+        IsRecordingHotkey = true;
+        HotkeyButton.Focus();
+        HotkeyButton.Content = "请按快捷键…";
+        HotkeyHint.Text = "按 Esc 取消录入；需包含 Ctrl 或 Alt，可搭配 Shift。";
+        _app.RecordHotkey(shortcut => { _wakeHotkey = shortcut; StopRecording(); });
+    }
+
+    internal void CaptureHotkey(KeyEventArgs e)
+    {
+        if (!IsRecordingHotkey) return;
+        e.Handled = true;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.Escape) { StopRecording(); return; }
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
+        var modifiers = Keyboard.Modifiers;
+        var shortcut = new WakeHotkey((uint)modifiers, (uint)KeyInterop.VirtualKeyFromKey(key));
+        if (!shortcut.IsValid)
+        { HotkeyHint.Text = "请使用 Ctrl/Alt 加字母、数字、空格或 F1–F11，可加 Shift。"; return; }
+        _wakeHotkey = shortcut;
+        StopRecording();
+    }
+
+    internal void StopRecording()
+    {
+        if (IsRecordingHotkey) _app.RecordHotkey(null);
+        IsRecordingHotkey = false;
+        HotkeyButton.Content = _wakeHotkey.ToString();
+        HotkeyHint.Text = "点击录入，保存后生效。支持 Ctrl/Alt 加字母、数字、空格或 F1–F11，可加 Shift。";
+    }
+    private void OnHotkeyFocusLost(object sender, KeyboardFocusChangedEventArgs e) => StopRecording();
+    private void OnResetHotkey(object sender, RoutedEventArgs e)
+    { _wakeHotkey = WakeHotkey.Default; StopRecording(); }
 
     private void OnClear(object sender, RoutedEventArgs e)
     {

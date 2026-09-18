@@ -206,6 +206,51 @@ internal static class Program
             SendMessage(events.Handle, PriorityHotkey.Message, nint.Zero, nint.Zero);
             Equal(2, hotkeys);
         });
+        Test("Hotkey settings: defaults, validation, cloning and encrypted persistence", () =>
+        {
+            var shortcut = new WakeHotkey(6, 0x4B);
+            Check(shortcut.IsValid); Equal("Ctrl+Shift+K", shortcut.ToString());
+            Equal(WakeHotkey.Default, new AppSettings().WakeHotkey);
+            foreach (var invalid in new[] { new WakeHotkey(0, 0x4B), new WakeHotkey(4, 0x41), new WakeHotkey(8, 0x20), new WakeHotkey(2, 0x7B) }) Check(!invalid.IsValid);
+            var library = NewLibrary().WithSettings(new AppSettings { WakeHotkey = shortcut });
+            Equal(shortcut, library.WithSettings(library.State.Settings).State.Settings.WakeHotkey);
+            var invalidState = new AppState { Settings = new AppSettings { WakeHotkey = null! } };
+            Equal(WakeHotkey.Default, new Library(invalidState).State.Settings.WakeHotkey);
+            var directory = Path.Combine(Path.GetTempPath(), "ClipTap.Tests", Guid.NewGuid().ToString("N"));
+            try
+            {
+                var store = new EncryptedStore(directory); store.Save(library.State);
+                Equal(shortcut, store.Load().Settings.WakeHotkey);
+            }
+            finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        });
+        Test("Hotkey settings: registration conflicts and failed saves preserve previous binding", () =>
+        {
+            var free = new List<(DesktopEvents Events, WakeHotkey Key)>();
+            try
+            {
+                for (uint key = 0x70; key <= 0x7A && free.Count < 3; key++)
+                {
+                    var shortcut = new WakeHotkey(7, key);
+                    var listener = new DesktopEvents(() => { }, shortcut);
+                    if (listener.HotkeyAvailable) free.Add((listener, shortcut)); else listener.Dispose();
+                }
+                Check(free.Count == 3);
+                var saveCalled = false;
+                Check(!free[0].Events.TryChange(free[1].Key, () => { saveCalled = true; return true; }, out var conflict));
+                Check(!saveCalled && conflict.Length > 0);
+                var candidate = free[2].Key; free[2].Events.Dispose(); free.RemoveAt(2);
+                Check(!free[0].Events.TryChange(candidate, () => false, out var failure));
+                Check(failure.Length > 0);
+                using (var releasedCandidate = new DesktopEvents(() => { }, candidate)) Check(releasedCandidate.HotkeyAvailable);
+                Check(free[0].Events.TryChange(candidate, () => true, out _));
+                using var oldBinding = new DesktopEvents(() => { }, free[0].Key);
+                Check(oldBinding.HotkeyAvailable);
+                using var newBinding = new DesktopEvents(() => { }, candidate);
+                Check(!newBinding.HotkeyAvailable);
+            }
+            finally { foreach (var entry in free) entry.Events.Dispose(); }
+        });
         Test("Placement: physical monitor origins, scaled sizes and negative coordinates", () =>
         {
             Equal((2510, 160), MainWindow.PanelPosition(new NativeMethods.Rect { Left = 1920, Top = 0, Right = 3840, Bottom = 1600 }, 740, 1120));
@@ -347,6 +392,26 @@ internal static class Program
             Equal((Color)ColorConverter.ConvertFromString("#80B2FF"), ((SolidColorBrush)app.Resources["Accent"]).Color);
             ThemeService.ApplyTheme(AppearanceMode.Light);
             Check(((SolidColorBrush)panel.Background).Color.R > 128);
+            panel.Hide();
+        });
+        Test("Hotkey UI: escape cancels recording, discard preserves setting and reset requires save", () =>
+        {
+            var custom = new WakeHotkey(6, 0x4B);
+            app.Library.State.Settings.WakeHotkey = custom;
+            panel.OpenPanel(false); panel.ShowSettings();
+            var host = (ContentControl)panel.FindName("PageHost");
+            var settings = (SettingsView)host.Content;
+            ((CheckBox)settings.FindName("StartupInput")).IsEnabled = false;
+            Equal("Ctrl+Shift+K", ((Button)settings.FindName("HotkeyButton")).Content);
+            Click(settings, "HotkeyButton"); Check(settings.IsRecordingHotkey);
+            SendKey(panel, Key.Escape); Check(!settings.IsRecordingHotkey);
+            Equal<object>(settings, host.Content);
+            Click(settings, "ResetHotkeyButton"); Equal(custom, app.Library.State.Settings.WakeHotkey);
+            Click(panel, "BackButton"); Equal(custom, app.Library.State.Settings.WakeHotkey);
+            panel.ShowSettings(); settings = (SettingsView)host.Content;
+            ((CheckBox)settings.FindName("StartupInput")).IsEnabled = false;
+            Click(settings, "ResetHotkeyButton"); Click(settings, "SaveButton");
+            Equal(WakeHotkey.Default, app.Library.State.Settings.WakeHotkey);
             panel.Hide();
         });
         Test("Theme: preference survives encrypted storage; defaults and invalid values use light", () =>

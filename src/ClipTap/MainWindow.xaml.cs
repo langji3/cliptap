@@ -128,8 +128,8 @@ public partial class MainWindow : Window
             HistoryStatus.Disabled => "请开启 Windows 剪贴板历史",
             HistoryStatus.AccessDenied => "无法访问 Windows 历史",
             HistoryStatus.Unavailable => "Windows 历史暂不可用",
-            _ => !_app.HotkeyAvailable ? "快捷键被占用" : "Alt+空格唤醒"
-        } : "Alt+空格唤醒";
+            _ => !_app.HotkeyAvailable ? "快捷键被占用" : _app.HotkeyLabel + "唤醒"
+        } : _app.HotkeyLabel + "唤醒";
         SystemSettingsButton.Visibility = _tab == 0 && _app.HistoryStatus != HistoryStatus.Ready && _app.HistoryStatus != HistoryStatus.Loading
             ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -141,6 +141,7 @@ public partial class MainWindow : Window
     private void OnSnippetsTab(object sender, RoutedEventArgs e) => SwitchTab(1);
     private async void OnKeyDown(object sender, KeyEventArgs e)
     {
+        if (_settings?.IsRecordingHotkey == true) { _settings.CaptureHotkey(e); return; }
         if (_busy) return;
         if (e.Key == Key.Escape && _menuId.HasValue && !Confirmation.IsOpen)
         { _menuId = null; RefreshRows(true); Entries.Focus(); e.Handled = true; return; }
@@ -302,7 +303,8 @@ public partial class MainWindow : Window
         RefreshRows(preserveSelection: true); Entries.Focus();
     }
     internal void ConfirmExit(Action exit) => Confirmation.Ask("更改尚未保存，仍要退出？", "退出", () => { exit(); return Task.CompletedTask; });
-    private void OnDeactivated(object? sender, EventArgs e) { if (!_busy) { Confirmation.Dismiss(); Hide(); } }
+    private void OnDeactivated(object? sender, EventArgs e)
+    { _settings?.StopRecording(); if (!_busy) { Confirmation.Dismiss(); Hide(); } }
     private void OnClosing(object? sender, CancelEventArgs e) { if (!_app.IsQuitting) { e.Cancel = true; Hide(); } }
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e)
     {

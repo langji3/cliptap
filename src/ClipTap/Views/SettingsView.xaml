@@ -29,6 +29,12 @@
         </Grid>
         <Border Height="1" Background="{DynamicResource Line}" Margin="0,0,0,18" />
         <CheckBox x:Name="StartupInput" Content="开机启动" Margin="0,6,0,14" />
+        <TextBlock Text="唤醒快捷键" Margin="0,0,0,6" />
+        <WrapPanel Margin="0,0,0,6">
+          <Button x:Name="HotkeyButton" Click="OnRecordHotkey" LostKeyboardFocus="OnHotkeyFocusLost" MinWidth="130" AutomationProperties.Name="录入唤醒快捷键" />
+          <Button x:Name="ResetHotkeyButton" Content="恢复默认" Click="OnResetHotkey" Margin="8,0,0,0" Background="Transparent" />
+        </WrapPanel>
+        <TextBlock x:Name="HotkeyHint" Text="点击录入，保存后生效。支持 Ctrl/Alt 加字母、数字、空格或 F1–F11，可加 Shift。" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,0,0,12" />
         <Button Content="Windows 剪贴板设置" HorizontalAlignment="Left" Background="Transparent" Padding="0,8" Margin="0,0,0,10" Click="OnSystemSettings" />
         <Button x:Name="ClearButton" Content="清空 Windows 历史" HorizontalAlignment="Left" Background="Transparent" Foreground="{DynamicResource Danger}" Padding="0,8" Click="OnClear" />
         <StackPanel x:Name="UpdatePanel" Visibility="Collapsed" Margin="0,18,0,0">
