@@ -1,5 +1,6 @@
 using System.Security;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using ClipTap.Core;
 using Microsoft.Win32;
 using System.Windows.Interop;
@@ -8,6 +9,7 @@ namespace ClipTap.Services;
 
 internal sealed class ThemeService : IDisposable
 {
+    private static readonly ImageBrush FrostGrain = CreateFrostGrain();
     private AppearanceMode _mode;
     private AccentPalette _accent;
     public event Action? Changed;
@@ -70,7 +72,13 @@ internal sealed class ThemeService : IDisposable
             var brush = new LinearGradientBrush(start, end, new Point(0, 0), new Point(1, 1));
             brush.Freeze(); resources[key] = brush;
         }
-        Gradient("PanelGradient", Mix(Neutral(dark ? "#20242D" : "#F4F7FB"), glow, dark ? .09 : .12), Neutral(dark ? "#171B23" : "#EEF1F6"));
+        Gradient("PanelGradient", Mix(Neutral(dark ? "#252C38" : "#EAF1FA"), glow, dark ? .07 : .06), Neutral(dark ? "#191F29" : "#E4EBF4"));
+        var light = new RadialGradientBrush(
+            Neutral(dark ? "#183D608E" : "#BFFFFFFF"), Colors.Transparent)
+        { Center = new Point(.12, .02), GradientOrigin = new Point(.12, .02), RadiusX = 1.05, RadiusY = .85 };
+        light.Freeze(); resources["FrostLight"] = light;
+        resources["FrostGrain"] = FrostGrain;
+        Gradient("FrostRim", Neutral(dark ? "#426D819E" : "#EFFFFFFF"), Neutral(dark ? "#142D3D55" : "#305F7C9E"));
         Gradient("CardGradient", Neutral(dark ? "#2D333F" : "#FFFFFF"), Mix(Neutral(dark ? "#252A34" : "#FAFBFD"), glow, .035));
         Gradient("CardSelectedGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .13), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .07));
         Gradient("CardHoverGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .24), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .15));
@@ -85,6 +93,26 @@ internal sealed class ThemeService : IDisposable
         resources["CardLine"] = new SolidColorBrush(Neutral(dark ? "#414958" : "#E0E6EE"));
         resources["LogoInk"] = Brushes.White;
         foreach (Window window in System.Windows.Application.Current.Windows) ApplyTitleBar(window);
+    }
+
+    private static ImageBrush CreateFrostGrain()
+    {
+        // A tiny, fixed texture gives the shell a matte finish without sampling the desktop.
+        const int size = 64;
+        var pixels = new byte[size * size * 4];
+        var random = new Random(731);
+        for (var offset = 0; offset < pixels.Length; offset += 4)
+        {
+            var value = (byte)(random.Next(2) == 0 ? 0 : 255);
+            pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = value;
+            pixels[offset + 3] = (byte)random.Next(3, 12);
+        }
+        var bitmap = BitmapSource.Create(size, size, 96, 96, PixelFormats.Bgra32, null, pixels, size * 4);
+        bitmap.Freeze();
+        var brush = new ImageBrush(bitmap)
+        { TileMode = TileMode.Tile, ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, size, size), Stretch = Stretch.None };
+        brush.Freeze();
+        return brush;
     }
 
     internal static void ApplyTitleBar(Window window)
