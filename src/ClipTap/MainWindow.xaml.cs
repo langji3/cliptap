@@ -56,7 +56,9 @@ public partial class MainWindow : Window
         // Prepare before Show so there is no fully visible frame before the entrance starts.
         PanelSurface.BeginAnimation(OpacityProperty, null);
         PanelSurface.Opacity = entering && _app.AnimatePanel ? 0 : 1;
-        Show(); Activate();
+        Show();
+        NativeMethods.SetForegroundWindow(_handle);
+        Activate();
         if (entering && _app.AnimatePanel)
         {
             var duration = TimeSpan.FromMilliseconds(240);

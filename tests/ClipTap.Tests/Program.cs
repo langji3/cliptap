@@ -203,6 +203,38 @@ internal static class Program
             Console.WriteLine($"  Alt+Space registration available: {events.HotkeyAvailable}");
             SendMessage(events.Handle, NativeMethods.WmHotkey, NativeMethods.HotkeyId, nint.Zero);
             Equal(1, hotkeys);
+            SendMessage(events.Handle, PriorityHotkey.Message, nint.Zero, nint.Zero);
+            Equal(2, hotkeys);
+        });
+        Test("Hotkey: capture chord, suppress repeat, release ordering and preserve other shortcuts", () =>
+        {
+            foreach (var altFirst in new[] { false, true })
+            {
+                var gesture = new HotkeyGesture();
+                Check(!gesture.Feed(0xA4, true, true, false).Suppress);
+                Equal(new HotkeyDecision(true, true, false), gesture.Feed(0x20, true, true, false));
+                Equal(new HotkeyDecision(true, false, false), gesture.Feed(0x20, true, true, false));
+                if (altFirst)
+                {
+                    Equal(new HotkeyDecision(false, false, false), gesture.Feed(0xA4, false, false, false));
+                    Equal(new HotkeyDecision(true, false, true), gesture.Feed(0x20, false, false, false));
+                }
+                else
+                {
+                    Equal(new HotkeyDecision(true, false, false), gesture.Feed(0x20, false, true, false));
+                    Equal(new HotkeyDecision(false, false, true), gesture.Feed(0xA4, false, false, false));
+                }
+                Equal(default(HotkeyDecision), gesture.Feed(0x20, false, false, false));
+            }
+            var normal = new HotkeyGesture();
+            Equal(default(HotkeyDecision), normal.Feed(0x20, true, false, false));
+            Equal(default(HotkeyDecision), normal.Feed(0x20, true, true, true));
+            Equal(default(HotkeyDecision), normal.Feed(0x09, true, true, false));
+            Equal(default(HotkeyDecision), normal.Feed(0xA4, false, false, false));
+            normal.Feed(0x20, true, true, false);
+            normal.Feed(0x09, true, true, false);
+            Check(!normal.Feed(0x20, false, true, false).Invoke);
+            Check(!normal.Feed(0xA4, false, false, false).Invoke);
         });
 
         var uiDirectory = Path.Combine(Path.GetTempPath(), "ClipTap.Tests", Guid.NewGuid().ToString("N"));
