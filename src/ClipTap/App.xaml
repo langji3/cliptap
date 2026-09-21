@@ -16,6 +16,7 @@
       <Setter Property="Background" Value="{DynamicResource Page}" />
     </Style>
     <Style TargetType="Button">
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
       <Setter Property="Background" Value="{DynamicResource ButtonSurface}" />
       <Setter Property="Foreground" Value="{DynamicResource Ink}" />
       <Setter Property="BorderThickness" Value="0" />

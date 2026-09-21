@@ -22,7 +22,7 @@ internal interface ISystemHistorySource : IDisposable
     event Action? Changed;
     Task<HistorySnapshot> ReadAsync();
     bool Clear();
-    Task<bool> RestoreImageAsync(Guid id);
+    Task<bool> RestoreItemAsync(Guid id);
     Task<bool> DeleteAsync(Guid id);
 }
 
@@ -96,13 +96,13 @@ internal sealed class WindowsHistorySource : ISystemHistorySource
         bitmap.Freeze();
         return bitmap;
     }
-    public async Task<bool> RestoreImageAsync(Guid id)
+    public async Task<bool> RestoreItemAsync(Guid id)
     {
-        // Re-query before writing: a cached thumbnail must never resurrect an item deleted in Win+V.
+        // Restore the original history item (including rich formats), rather than copy it as a new entry.
         var result = await SystemClipboard.GetHistoryItemsAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         if (result.Status != ClipboardHistoryItemsResultStatus.Success) return false;
         var item = result.Items.FirstOrDefault(i => Identity(i.Id) == id);
-        return item is not null && item.Content.Contains(StandardDataFormats.Bitmap)
+        return item is not null && (item.Content.Contains(StandardDataFormats.Bitmap) || item.Content.Contains(StandardDataFormats.Text))
             && SystemClipboard.SetHistoryItemAsContent(item) == SetHistoryItemAsContentStatus.Success;
     }
     public bool Clear() => SystemClipboard.ClearHistory();
@@ -142,7 +142,8 @@ internal sealed class SystemHistoryService(ISystemHistorySource source) : IDispo
         catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or InvalidOperationException or TimeoutException or OperationCanceledException)
         { snapshot = new(HistoryStatus.Unavailable, []); }
         if (_disposed || revision != _revision) return;
-        Snapshot = snapshot;
+        // Presentation follows original copy time, not the OS's last-used ordering.
+        Snapshot = snapshot with { Items = snapshot.Items.OrderByDescending(item => item.CopiedAt).ToArray() };
         Updated?.Invoke();
     }
     internal async Task<bool> ClearAsync()
@@ -155,10 +156,10 @@ internal sealed class SystemHistoryService(ISystemHistorySource source) : IDispo
         await RefreshAsync();
         return cleared;
     }
-    internal async Task<bool> RestoreImageAsync(Guid id)
+    internal async Task<bool> RestoreItemAsync(Guid id)
     {
-        if (_disposed || !Snapshot.Items.Any(i => i.Id == id && i.IsImage)) return false;
-        try { return await source.RestoreImageAsync(id); }
+        if (_disposed || !Snapshot.Items.Any(i => i.Id == id)) return false;
+        try { return await source.RestoreItemAsync(id); }
         catch (Exception ex) when (ex is COMException or UnauthorizedAccessException or InvalidOperationException or TimeoutException or OperationCanceledException)
         { return false; }
     }

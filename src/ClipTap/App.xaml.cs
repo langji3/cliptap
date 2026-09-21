@@ -16,7 +16,7 @@ public partial class App : System.Windows.Application
     private Forms.NotifyIcon? _tray;
     private DispatcherTimer? _saveTimer;
     private EncryptedStore? _store;
-    private ClipboardService? _clipboard;
+    private IClipboardWriter? _clipboard;
     private ThemeService? _theme;
     private DesktopEvents? _events;
     private ExpansionService? _expansion;
@@ -26,7 +26,7 @@ public partial class App : System.Windows.Application
     private MainWindow? _panel;
     private readonly bool _testHost;
     internal Library Library { get; set; } = null!;
-    internal ClipboardService ClipboardService => _clipboard!;
+    internal IClipboardWriter ClipboardService => _clipboard!;
     internal bool IsQuitting { get; private set; }
     internal bool HotkeyAvailable => _events?.HotkeyAvailable ?? true;
     internal string HotkeyLabel => Library.State.Settings.WakeHotkey.ToString();
@@ -36,7 +36,8 @@ public partial class App : System.Windows.Application
     internal IReadOnlyList<HistoryEntry> History => (_history?.Snapshot.Items ?? [])
         .Where(c => c.IsImage || !Library.State.Snippets.Any(s => s.IsSensitive && s.Value == c.Text)).ToArray();
     public App() { }
-    internal App(EncryptedStore store, ISystemHistorySource history) { _testHost = true; _store = store; InitializeHistory(history); }
+    internal App(EncryptedStore store, ISystemHistorySource history, IClipboardWriter? clipboard = null)
+    { _testHost = true; _store = store; _clipboard = clipboard; InitializeHistory(history); }
     private MainWindow Panel
     {
         get
@@ -154,7 +155,7 @@ public partial class App : System.Windows.Application
     }
     internal Task<bool> ClearSystemHistoryAsync() => _history?.ClearAsync() ?? Task.FromResult(false);
     internal Task<bool> DeleteSystemHistoryAsync(Guid id) => _history?.DeleteAsync(id) ?? Task.FromResult(false);
-    internal Task<bool> RestoreHistoryImageAsync(Guid id) => _history?.RestoreImageAsync(id) ?? Task.FromResult(false);
+    internal Task<bool> RestoreHistoryItemAsync(Guid id) => _history?.RestoreItemAsync(id) ?? Task.FromResult(false);
     internal bool OpenSystemClipboardSettings()
     {
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:clipboard") { UseShellExecute = true }); return true; }
@@ -252,7 +253,6 @@ public partial class App : System.Windows.Application
         _events?.Dispose();
         _expansion?.Dispose();
         _history?.Dispose();
-        _clipboard?.Dispose();
         _theme?.Dispose();
         if (_tray is not null) { _tray.Visible = false; _tray.Icon?.Dispose(); _tray.ContextMenuStrip?.Dispose(); _tray.Dispose(); }
         if (_ownsMutex) _instance?.ReleaseMutex();

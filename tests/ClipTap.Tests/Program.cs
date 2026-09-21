@@ -291,7 +291,8 @@ internal static class Program
         var uiDirectory = Path.Combine(Path.GetTempPath(), "ClipTap.Tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(uiDirectory);
         var historySource = new FakeHistorySource();
-        var app = new App(new EncryptedStore(uiDirectory), historySource) { Library = NewLibrary() };
+        var clipboardWriter = new FakeClipboardWriter();
+        var app = new App(new EncryptedStore(uiDirectory), historySource, clipboardWriter) { Library = NewLibrary() };
         app.InitializeComponent();
         Await(app.RefreshSystemHistoryAsync());
         ThemeService.ApplyTheme(AppearanceMode.Light);
@@ -583,13 +584,42 @@ internal static class Program
             Equal<Guid?>(imageId, historySource.RestoredImage); Check(panel.IsVisible);
             list.Focus(); SendKey(panel, Key.Enter);
             Equal<Guid?>(imageId, historySource.RestoredImage); Check(panel.IsVisible);
-            Equal("图片已失效或剪贴板忙", ((TextBlock)panel.FindName("StatusLabel")).Text);
+            Equal("历史记录已失效或剪贴板忙", ((TextBlock)panel.FindName("StatusLabel")).Text);
             historySource.RestoreResult = true; SendKey(panel, Key.Enter); Check(!panel.IsVisible);
             using var snapshot = new SystemHistoryService(historySource);
             Await(snapshot.RefreshAsync());
             historySource.Snapshot = new(HistoryStatus.Ready, []);
-            var restore = snapshot.RestoreImageAsync(imageId); Await(restore); Check(!restore.Result);
+            var restore = snapshot.RestoreItemAsync(imageId); Await(restore); Check(!restore.Result);
             Check(app.Library.State.History.All(i => i.Id != imageId));
+        });
+        Test("Paste: history restores original identity and selection; secrets need no confirmation", () =>
+        {
+            var first = new HistoryEntry(Guid.NewGuid(), "first", Now);
+            var second = new HistoryEntry(Guid.NewGuid(), "second", Now.AddSeconds(-1));
+            historySource.Snapshot = new(HistoryStatus.Ready, [first, second]);
+            panel.OpenPanel(false); panel.UpdateLayout();
+            var list = (ListBox)panel.FindName("Entries");
+            list.SelectedIndex = 1; list.Focus();
+            var writes = clipboardWriter.Writes;
+            SendKey(panel, Key.Enter);
+            Equal<Guid?>(second.Id, historySource.RestoredImage);
+            Equal(writes, clipboardWriter.Writes); Check(!panel.IsVisible);
+            historySource.Snapshot = new(HistoryStatus.Ready, [second, first]); // OS last-used ordering
+            panel.OpenPanel(false);
+            Equal(first.Id, ((EntryRow)list.Items[0]).Id);
+            Equal(second.Id, ((EntryRow)list.SelectedItem).Id);
+            var newest = new HistoryEntry(Guid.NewGuid(), "new copy", Now.AddSeconds(1));
+            historySource.Snapshot = new(HistoryStatus.Ready, [second, newest, first]);
+            Await(app.RefreshSystemHistoryAsync());
+            panel.RefreshHistory();
+            Equal(newest.Id, ((EntryRow)list.Items[0]).Id);
+            Equal(second.Id, ((EntryRow)list.SelectedItem).Id);
+            SendKey(panel, Key.Right);
+            list.SelectedItem = list.Items.Cast<EntryRow>().First(r => r.Sensitive);
+            list.Focus(); SendKey(panel, Key.Enter);
+            Check(!((InlineConfirmation)panel.FindName("Confirmation")).IsOpen);
+            Equal(writes + 1, clipboardWriter.Writes); Check(clipboardWriter.Sensitive);
+            Check(!panel.IsVisible);
         });
         Test("Cards: more never pastes, Escape closes actions, delete/clear require confirmation", () =>
         {
@@ -717,6 +747,14 @@ internal static class Program
     }
 }
 
+internal sealed class FakeClipboardWriter : IClipboardWriter
+{
+    internal int Writes;
+    internal bool Sensitive;
+    public Task<bool> WriteAsync(string text, bool sensitive)
+    { Writes++; Sensitive = sensitive; return Task.FromResult(true); }
+}
+
 internal sealed class FakeHistorySource : ISystemHistorySource
 {
     public event Action? Changed;
@@ -734,7 +772,7 @@ internal sealed class FakeHistorySource : ISystemHistorySource
         if (DeleteResult) Snapshot = Snapshot with { Items = Snapshot.Items.Where(i => i.Id != id).ToArray() };
         return Task.FromResult(DeleteResult);
     }
-    public Task<bool> RestoreImageAsync(Guid id) { RestoredImage = id; return Task.FromResult(RestoreResult && Snapshot.Items.Any(i => i.Id == id && i.IsImage)); }
+    public Task<bool> RestoreItemAsync(Guid id) { RestoredImage = id; return Task.FromResult(RestoreResult && Snapshot.Items.Any(i => i.Id == id)); }
     public Task<HistorySnapshot> ReadAsync() => Read?.Invoke() ?? Task.FromResult(Snapshot);
     public bool Clear()
     {

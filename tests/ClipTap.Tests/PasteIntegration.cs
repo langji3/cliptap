@@ -59,7 +59,7 @@ internal static class PasteIntegration
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
         var backup = SnapshotClipboard();
         uint? writtenSequence = null;
-        using var clipboard = new ClipboardService();
+        var clipboard = new ClipboardService();
         try
         {
             await pipe.WaitForConnectionAsync(timeout.Token);
@@ -78,9 +78,11 @@ internal static class PasteIntegration
                 throw new InvalidOperationException($"Test input did not gain focus; no input sent. Fixture={fixtureHandle}, foreground={foreground}, PID={pid}, GUI={found}, focus={gui.Focus}");
             }
             const string payload = "ClipTap 验证 ✓";
-            if (!await clipboard.WriteAsync(payload, sensitive: false)) throw new InvalidOperationException("Clipboard busy");
+            if (!await clipboard.WriteAsync(payload, sensitive: true)) throw new InvalidOperationException("Clipboard busy");
             writtenSequence = NativeMethods.GetClipboardSequenceNumber();
             if (Clipboard.GetText() != payload) throw new InvalidOperationException("Clipboard write did not match");
+            foreach (var format in new[] { "ExcludeClipboardContentFromMonitorProcessing", "CanIncludeInClipboardHistory", "CanUploadToCloudClipboard" })
+                if (!Clipboard.ContainsData(format)) throw new InvalidOperationException("Missing sensitive clipboard marker: " + format);
             if (!await PasteService.PasteAsync(target)) throw new InvalidOperationException("Paste was not sent to test input");
             await Task.Delay(200);
             await writer.WriteLineAsync("read");

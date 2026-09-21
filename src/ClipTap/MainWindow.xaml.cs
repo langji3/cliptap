@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private int _tab;
     private bool _busy;
     private Guid? _menuId;
+    private Guid? _historySelection;
     private PasteTarget? _target;
     private SnippetView? _editor;
     private SettingsView? _settings;
@@ -107,6 +108,7 @@ public partial class MainWindow : Window
     internal void RefreshRows(bool preserveSelection = false)
     {
         var selected = preserveSelection ? (Entries.SelectedItem as EntryRow)?.Id : null;
+        if (_tab == 0) selected ??= _historySelection;
         var rows = _tab == 0
             ? _app.History.Select(c => new EntryRow(c.Id, c.IsImage ? "图片" : Library.Preview(c.Text), c.CopiedAt.ToLocalTime().ToString("HH:mm"), false, false, c.IsImage, c.Thumbnail)).ToList()
             : _app.Library.OrderedSnippets().Select(s => new EntryRow(s.Id, s.Title, s.Trigger ?? "", s.IsSensitive, s.IsPinned)).ToList();
@@ -136,7 +138,14 @@ public partial class MainWindow : Window
 
     private void OnSystemSettings(object sender, RoutedEventArgs e) => _app.OpenSystemClipboardSettings();
 
-    private void SwitchTab(int tab) { if (_busy) return; Confirmation.Dismiss(); _menuId = null; _tab = tab; RefreshRows(); Entries.Focus(); }
+    private void SwitchTab(int tab)
+    {
+        if (_busy) return;
+        RememberHistorySelection();
+        Confirmation.Dismiss(); _menuId = null; _tab = tab; RefreshRows(); Entries.Focus();
+    }
+    private void RememberHistorySelection()
+    { if (_tab == 0 && Entries.SelectedItem is EntryRow row) _historySelection = row.Id; }
     private void OnHistoryTab(object sender, RoutedEventArgs e) => SwitchTab(0);
     private void OnSnippetsTab(object sender, RoutedEventArgs e) => SwitchTab(1);
     private async void OnKeyDown(object sender, KeyEventArgs e)
@@ -238,12 +247,7 @@ public partial class MainWindow : Window
     private Task PasteSelectedAsync()
     {
         if (_busy || Entries.SelectedItem is not EntryRow row) return Task.CompletedTask;
-        if (row.Sensitive)
-        {
-            var target = _target;
-            Confirmation.Ask($"粘贴“{row.Title}”？\n敏感内容会暂存剪贴板，30 秒后尝试清除。", "粘贴", () => PasteRowAsync(row, target));
-            return Task.CompletedTask;
-        }
+        RememberHistorySelection();
         return PasteRowAsync(row, _target);
     }
     private async Task PasteRowAsync(EntryRow row, PasteTarget? target)
@@ -255,8 +259,8 @@ public partial class MainWindow : Window
         _busy = true;
         try
         {
-            var copied = row.IsImage ? await _app.RestoreHistoryImageAsync(row.Id) : await _app.ClipboardService.WriteAsync(value, row.Sensitive);
-            if (!copied) { StatusLabel.Text = row.IsImage ? "图片已失效或剪贴板忙" : "剪贴板忙，请重试"; return; }
+            var copied = _tab == 0 ? await _app.RestoreHistoryItemAsync(row.Id) : await _app.ClipboardService.WriteAsync(value, row.Sensitive);
+            if (!copied) { StatusLabel.Text = _tab == 0 ? "历史记录已失效或剪贴板忙" : "剪贴板忙，请重试"; return; }
             Hide();
             if (!await PasteService.PasteAsync(target)) _app.Notify("已复制 · Ctrl+V 粘贴");
         }
@@ -304,7 +308,7 @@ public partial class MainWindow : Window
     }
     internal void ConfirmExit(Action exit) => Confirmation.Ask("更改尚未保存，仍要退出？", "退出", () => { exit(); return Task.CompletedTask; });
     private void OnDeactivated(object? sender, EventArgs e)
-    { _settings?.StopRecording(); if (!_busy) { Confirmation.Dismiss(); Hide(); } }
+    { RememberHistorySelection(); _settings?.StopRecording(); if (!_busy) { Confirmation.Dismiss(); Hide(); } }
     private void OnClosing(object? sender, CancelEventArgs e) { if (!_app.IsQuitting) { e.Cancel = true; Hide(); } }
     private void OnHeaderDrag(object sender, MouseButtonEventArgs e)
     {
