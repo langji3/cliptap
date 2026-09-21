@@ -1,0 +1,35 @@
+name: Upload v0.1.7 portable asset
+on:
+  push:
+    branches: [codex/release-v0.1.7-assets]
+permissions:
+  contents: write
+jobs:
+  upload:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v0.1.7
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build portable package from release tag
+        shell: pwsh
+        run: ./scripts/publish.ps1 -SelfContained
+      - name: Upload portable package and checksums to draft
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh release download v0.1.7 --pattern SHA256SUMS.txt --dir artifacts
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download checksums' }
+          $portableHash = (Get-FileHash artifacts/ClipTap-win-x64-portable.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksumPath = 'artifacts/SHA256SUMS.txt'
+          $checksums = [IO.File]::ReadAllText($checksumPath)
+          $checksums = $checksums -replace '(?m)^[0-9a-f]{64}  ClipTap-win-x64-portable\.zip', "$portableHash  ClipTap-win-x64-portable.zip"
+          [IO.File]::WriteAllText($checksumPath, $checksums, [Text.Encoding]::ASCII)
+          gh release upload v0.1.7 artifacts/ClipTap-win-x64-portable.zip artifacts/SHA256SUMS.txt --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed' }
+          Write-Output "Portable SHA256: $portableHash"
