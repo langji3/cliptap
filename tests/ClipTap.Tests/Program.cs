@@ -1512,10 +1512,13 @@ internal static class Program
         Check(!drawn.IsEmpty && drawn.Width > 0 && drawn.Height > 0);
         // WPF rounds layout to device pixels. A subpixel height change is a large ratio error for a
         // wide strip, so check the fitted dimensions within one physical pixel at the current DPI.
-        var scale = Math.Min(image.ActualWidth / source.Width, image.ActualHeight / source.Height);
+        // Width/Height are the available viewport; ActualWidth/ActualHeight are already rounded by
+        // Image.ArrangeOverride and must not be used to compute a second, distorted fit.
+        var scale = Math.Min(image.Width / source.Width, image.Height / source.Height);
         var dpi = VisualTreeHelper.GetDpi(image);
-        Check(Math.Abs(drawn.Width - source.Width * scale) * dpi.DpiScaleX <= 1.01);
-        Check(Math.Abs(drawn.Height - source.Height * scale) * dpi.DpiScaleY <= 1.01);
+        if (Math.Abs(drawn.Width - source.Width * scale) * dpi.DpiScaleX > 1.01 ||
+            Math.Abs(drawn.Height - source.Height * scale) * dpi.DpiScaleY > 1.01)
+            throw new InvalidOperationException($"Preview fit: drawn={drawn}, actual={image.ActualWidth}x{image.ActualHeight}, expected={source.Width * scale}x{source.Height * scale}, dpi={dpi.DpiScaleX}x{dpi.DpiScaleY}");
         var bounds = image.TransformToAncestor(frame).TransformBounds(drawn);
         Check(bounds.Left >= -1 && bounds.Top >= -1 && bounds.Right <= frame.ActualWidth + 1 && bounds.Bottom <= frame.ActualHeight + 1);
     }
