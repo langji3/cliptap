@@ -1510,7 +1510,12 @@ internal static class Program
         Check(image.ActualWidth >= minimumWidth && image.ActualHeight >= minimumHeight);
         var drawn = VisualTreeHelper.GetContentBounds(image);
         Check(!drawn.IsEmpty && drawn.Width > 0 && drawn.Height > 0);
-        Check(Math.Abs(drawn.Width / drawn.Height - (double)source.PixelWidth / source.PixelHeight) <= 0.01);
+        // WPF rounds layout to device pixels. A subpixel height change is a large ratio error for a
+        // wide strip, so check the fitted dimensions within one physical pixel at the current DPI.
+        var scale = Math.Min(image.ActualWidth / source.Width, image.ActualHeight / source.Height);
+        var dpi = VisualTreeHelper.GetDpi(image);
+        Check(Math.Abs(drawn.Width - source.Width * scale) * dpi.DpiScaleX <= 1.01);
+        Check(Math.Abs(drawn.Height - source.Height * scale) * dpi.DpiScaleY <= 1.01);
         var bounds = image.TransformToAncestor(frame).TransformBounds(drawn);
         Check(bounds.Left >= -1 && bounds.Top >= -1 && bounds.Right <= frame.ActualWidth + 1 && bounds.Bottom <= frame.ActualHeight + 1);
     }
