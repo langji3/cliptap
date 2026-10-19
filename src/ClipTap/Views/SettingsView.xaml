@@ -2,56 +2,93 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:ClipTap.Views">
   <UserControl.Resources>
     <Style x:Key="Swatch" TargetType="RadioButton">
-      <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" /><Setter Property="Margin" Value="5,0,0,0" /><Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Width" Value="28" /><Setter Property="Height" Value="28" /><Setter Property="Margin" Value="6,0,0,0" /><Setter Property="Cursor" Value="Hand" />
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
-        <Border x:Name="Ring" BorderBrush="Transparent" BorderThickness="2" CornerRadius="16" Padding="4">
-          <Grid><Ellipse Fill="{TemplateBinding Background}" /><Ellipse><Ellipse.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#60FFFFFF" Offset="0" /><GradientStop Color="#00FFFFFF" Offset="0.5" /><GradientStop Color="#250C1830" Offset="1" /></LinearGradientBrush></Ellipse.Fill></Ellipse></Grid>
+        <Border x:Name="Ring" BorderBrush="Transparent" BorderThickness="2" CornerRadius="14" Padding="3">
+          <Ellipse Fill="{TemplateBinding Background}" />
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property="IsChecked" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource Ink}" /></Trigger>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource Muted}" /></Trigger>
           <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource Accent}" /></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
+    <Style x:Key="GroupTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+      <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+    <Style x:Key="RowLabel" TargetType="TextBlock">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style x:Key="Divider" TargetType="Border">
+      <Setter Property="Height" Value="1" />
+      <Setter Property="Background" Value="{DynamicResource Line}" />
+      <Setter Property="Margin" Value="0,14,0,14" />
+    </Style>
   </UserControl.Resources>
-  <Grid Margin="22,4,22,18">
+  <Grid Margin="16,2,16,14">
     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel>
-        <Grid Margin="0,4,0,18"><TextBlock Text="外观" VerticalAlignment="Center" /><ComboBox x:Name="ThemeInput" Width="138" Height="34" HorizontalAlignment="Right" SelectionChanged="OnThemeChanged" DisplayMemberPath="Label" SelectedValuePath="Mode" AutomationProperties.Name="外观" /></Grid>
-        <Grid Margin="0,0,0,18">
-          <TextBlock Text="主题色" VerticalAlignment="Center" />
+        <!-- 外观 -->
+        <TextBlock Text="外观" Style="{StaticResource GroupTitle}" />
+        <Grid>
+          <TextBlock Text="主题" Style="{StaticResource RowLabel}" />
+          <ComboBox x:Name="ThemeInput" Width="140" Height="34" HorizontalAlignment="Right" SelectionChanged="OnThemeChanged"
+                    DisplayMemberPath="Label" SelectedValuePath="Mode" AutomationProperties.Name="外观" />
+        </Grid>
+        <Grid Margin="0,12,0,0">
+          <TextBlock Text="主题色" Style="{StaticResource RowLabel}" />
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <RadioButton x:Name="GreenAccent" Style="{StaticResource Swatch}" Background="#28785D" Tag="Green" ToolTip="绿" AutomationProperties.Name="绿色" Checked="OnAccentChanged" />
-            <RadioButton x:Name="BlueAccent" Style="{StaticResource Swatch}" Background="#326CC4" Tag="Blue" ToolTip="蓝" AutomationProperties.Name="蓝色" Checked="OnAccentChanged" />
-            <RadioButton x:Name="PurpleAccent" Style="{StaticResource Swatch}" Background="#8057B6" Tag="Purple" ToolTip="紫" AutomationProperties.Name="紫色" Checked="OnAccentChanged" />
+            <RadioButton x:Name="GreenAccent" Style="{StaticResource Swatch}" Background="#1F6C52" Tag="Green" ToolTip="绿" AutomationProperties.Name="绿色" Checked="OnAccentChanged" />
+            <RadioButton x:Name="BlueAccent" Style="{StaticResource Swatch}" Background="#2C5FC4" Tag="Blue" ToolTip="蓝" AutomationProperties.Name="蓝色" Checked="OnAccentChanged" />
+            <RadioButton x:Name="PurpleAccent" Style="{StaticResource Swatch}" Background="#6F42B0" Tag="Purple" ToolTip="紫" AutomationProperties.Name="紫色" Checked="OnAccentChanged" />
           </StackPanel>
         </Grid>
-        <Border Height="1" Background="{DynamicResource Line}" Margin="0,0,0,18" />
-        <CheckBox x:Name="StartupInput" Content="开机启动" Margin="0,6,0,14" />
-        <TextBlock Text="唤醒快捷键" Margin="0,0,0,6" />
-        <WrapPanel Margin="0,0,0,6">
-          <Button x:Name="HotkeyButton" Click="OnRecordHotkey" LostKeyboardFocus="OnHotkeyFocusLost" MinWidth="130" AutomationProperties.Name="录入唤醒快捷键" />
-          <Button x:Name="ResetHotkeyButton" Content="恢复默认" Click="OnResetHotkey" Margin="8,0,0,0" Background="Transparent" />
-        </WrapPanel>
-        <TextBlock x:Name="HotkeyHint" Text="点击录入，保存后生效。支持 Ctrl/Alt 加字母、数字、空格或 F1–F11，可加 Shift。" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,0,0,12" />
-        <Button Content="Windows 剪贴板设置" HorizontalAlignment="Left" Background="Transparent" Padding="0,8" Margin="0,0,0,10" Click="OnSystemSettings" />
-        <Button x:Name="ClearButton" Content="清空 Windows 历史" HorizontalAlignment="Left" Background="Transparent" Foreground="{DynamicResource Danger}" Padding="0,8" Click="OnClear" />
-        <StackPanel x:Name="UpdatePanel" Visibility="Collapsed" Margin="0,18,0,0">
-          <Border Height="1" Background="{DynamicResource Line}" Margin="0,0,0,14" />
+
+        <!-- 使用习惯 -->
+        <Border Style="{StaticResource Divider}" />
+        <TextBlock Text="使用习惯" Style="{StaticResource GroupTitle}" />
+        <CheckBox x:Name="StartupInput" Content="开机启动" Margin="0,0,0,14" />
+        <Grid>
+          <TextBlock Text="唤醒快捷键" Style="{StaticResource RowLabel}" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="HotkeyButton" Click="OnRecordHotkey" LostKeyboardFocus="OnHotkeyFocusLost" MinWidth="118" Padding="12,7" AutomationProperties.Name="录入唤醒快捷键" />
+            <Button x:Name="ResetHotkeyButton" Content="恢复默认" Style="{StaticResource QuietButton}" Click="OnResetHotkey" Margin="6,0,0,0" />
+          </StackPanel>
+        </Grid>
+        <TextBlock x:Name="HotkeyHint" Text="点击录入；支持 Ctrl/Alt 加字母、数字、空格或 F1–F11，可加 Shift。" TextWrapping="Wrap"
+                   FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,8,0,0" />
+
+        <!-- 系统与数据 -->
+        <Border Style="{StaticResource Divider}" />
+        <TextBlock Text="系统与数据" Style="{StaticResource GroupTitle}" />
+        <Grid>
+          <Button Content="Windows 剪贴板设置" Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Click="OnSystemSettings" />
+          <Button x:Name="ClearButton" Content="清空 Windows 历史" Style="{StaticResource QuietButton}" HorizontalAlignment="Right"
+                  Foreground="{DynamicResource Danger}" Click="OnClear" />
+        </Grid>
+        <StackPanel x:Name="UpdatePanel" Visibility="Collapsed" Margin="0,16,0,0">
           <Grid>
-            <TextBlock x:Name="VersionLabel" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" />
-            <Button x:Name="CheckUpdateButton" Content="检查更新" HorizontalAlignment="Right" Click="OnCheckUpdate" />
+            <TextBlock x:Name="VersionLabel" VerticalAlignment="Center" Foreground="{DynamicResource Muted}" FontSize="12" />
+            <Button x:Name="CheckUpdateButton" Content="检查更新" Style="{StaticResource QuietButton}" HorizontalAlignment="Right" Click="OnCheckUpdate" />
           </Grid>
-          <TextBlock x:Name="UpdateStatusLabel" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource Muted}" />
-          <Button x:Name="InstallUpdateButton" Content="立即更新" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnInstallUpdate" />
-          <Button x:Name="CancelUpdateButton" Content="取消下载" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnCancelUpdate" />
-          <Button x:Name="OpenReleaseButton" Content="前往下载页" Visibility="Collapsed" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnOpenRelease" />
+          <TextBlock x:Name="UpdateStatusLabel" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Muted}" />
+          <WrapPanel Margin="0,8,0,0">
+            <Button x:Name="InstallUpdateButton" Content="立即更新" Style="{StaticResource PrimaryButton}" Visibility="Collapsed" Margin="0,0,8,0" Click="OnInstallUpdate" />
+            <Button x:Name="CancelUpdateButton" Content="取消下载" Style="{StaticResource QuietButton}" Visibility="Collapsed" Margin="0,0,8,0" Click="OnCancelUpdate" />
+            <Button x:Name="OpenReleaseButton" Content="前往下载页" Style="{StaticResource QuietButton}" Visibility="Collapsed" Click="OnOpenRelease" />
+          </WrapPanel>
         </StackPanel>
       </StackPanel>
     </ScrollViewer>
-    <TextBlock x:Name="ErrorLabel" Grid.Row="1" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,8,0,4" />
+    <TextBlock x:Name="ErrorLabel" Grid.Row="1" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0" />
     <local:InlineConfirmation x:Name="Confirmation" Grid.Row="2" />
-    <Button x:Name="SaveButton" Grid.Row="3" Content="保存" HorizontalAlignment="Right" MinWidth="76" Margin="0,8,0,0" Background="{DynamicResource ActionGradient}" Foreground="{DynamicResource OnAccent}" Click="OnSave" />
+    <Button x:Name="SaveButton" Grid.Row="3" Content="保存" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right"
+            MinWidth="88" Padding="18,9" Margin="0,12,0,0" Click="OnSave" />
   </Grid>
 </UserControl>

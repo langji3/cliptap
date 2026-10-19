@@ -1,6 +1,5 @@
 using System.Security;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using ClipTap.Core;
 using Microsoft.Win32;
 using System.Windows.Interop;
@@ -9,7 +8,6 @@ namespace ClipTap.Services;
 
 internal sealed class ThemeService : IDisposable
 {
-    private static readonly ImageBrush FrostGrain = CreateFrostGrain();
     private AppearanceMode _mode;
     private AccentPalette _accent;
     public event Action? Changed;
@@ -28,91 +26,75 @@ internal sealed class ThemeService : IDisposable
         dispatcher.BeginInvoke(() => { if (_mode == AppearanceMode.System) { ApplyTheme(_mode, _accent); Changed?.Invoke(); } });
     }
 
+    /// <summary>
+    /// Rewrites the neutral surface palette plus the accent-derived resources. Window backgrounds stay
+    /// neutral; chroma only reaches primary buttons, keyboard focus and the light selection tint.
+    /// </summary>
     internal static void ApplyTheme(AppearanceMode mode, AccentPalette accent = AccentPalette.Blue)
     {
         var dark = mode == AppearanceMode.Dark || mode == AppearanceMode.System && SystemUsesDarkTheme();
-        var palette = accent switch
+        // One hue per accent; light/dark pick the member that stays readable as text and as a filled surface.
+        var accentColor = Parse(accent switch
         {
-            AccentPalette.Blue => new[] { "#326CC4", "#80B2FF", "#E9F0FF", "#263C58", "#BECEEF", "#496B9B" },
-            AccentPalette.Purple => new[] { "#8057B6", "#C0A3ED", "#F1EBF9", "#3D3151", "#D5C3EB", "#796092" },
-            _ => new[] { "#28785D", "#77CDA6", "#E7F1EA", "#2B4638", "#C4DCCD", "#4B755D" }
-        };
-        var colors = new Dictionary<string, string>
+            AccentPalette.Purple => dark ? "#C3A6F0" : "#6F42B0",
+            AccentPalette.Green => dark ? "#7FD3AC" : "#1F6C52",
+            _ => dark ? "#8FB6FF" : "#2C5FC4"
+        });
+        var surface = Parse(dark ? "#282A2E" : "#FFFFFF");
+        var colors = new Dictionary<string, Color>
         {
-            ["Ink"] = dark ? "#E9EDF5" : "#253044",
-            ["Muted"] = dark ? "#A6AFC0" : "#69778D",
-            ["Accent"] = palette[dark ? 1 : 0],
-            ["OnAccent"] = dark ? "#182127" : "#FFFFFF",
-            ["Page"] = dark ? "#1D2228" : "#FAFCFA",
-            ["Chrome"] = dark ? "#242B37" : "#E5EBF3",
-            ["Field"] = dark ? "#252D35" : "#FFFFFF",
-            ["TabSurface"] = dark ? "#39434C" : "#FFFFFF",
-            ["ButtonSurface"] = dark ? "#354052" : "#E7EDF5",
-            ["Hover"] = palette[dark ? 3 : 2],
-            ["Selected"] = palette[dark ? 3 : 2],
-            ["SelectedBorder"] = palette[dark ? 5 : 4],
-            ["Line"] = dark ? "#3D4854" : "#D9E3DD",
-            ["EmptyIcon"] = dark ? "#688D77" : "#9EB9A8",
-            ["Danger"] = dark ? "#F0A39D" : "#AB403B"
+            ["Ink"] = Parse(dark ? "#F2F3F5" : "#1F2124"),
+            ["Muted"] = Parse(dark ? "#A4A8B0" : "#6B7078"),
+            ["Accent"] = accentColor,
+            // Filled accent surfaces pick whichever of near-black/near-white clears 4.5:1 against the accent.
+            ["OnAccent"] = RelativeLuminance(accentColor) > 0.45 ? Parse("#15203A") : Colors.White,
+            ["OnDanger"] = Colors.White,
+            ["Page"] = Parse(dark ? "#202124" : "#FAFAFA"),
+            ["PreviewSurface"] = Parse(dark ? "#202124" : "#FFFFFF"),
+            ["Field"] = surface,
+            ["FieldBackground"] = surface,
+            ["ButtonSurface"] = dark ? Parse("#3A3E45") : Parse("#ECEDEF"),
+            // Unchecked switches need their own track colour: the surface tone disappears on the page.
+            ["SwitchTrack"] = dark ? Parse("#42464D") : Parse("#D2D5DA"),
+            ["SwitchKnob"] = dark ? Parse("#B9BEC6") : Parse("#7C838C"),
+            ["Chrome"] = dark ? Parse("#26282C") : Parse("#F1F2F4"),
+            ["Hover"] = dark ? Parse("#303338") : Parse("#F0F1F3"),
+            ["Selected"] = Mix(surface, accentColor, dark ? 0.16 : 0.10),
+            ["Line"] = Parse(dark ? "#36383D" : "#E7E8EB"),
+            ["CardLine"] = Parse(dark ? "#36383D" : "#E7E8EB"),
+            ["Danger"] = Parse(dark ? "#FF9A93" : "#B3261E"),
+            ["DangerSurface"] = dark ? Parse("#4A2A28") : Parse("#FDECEA"),
+            ["EmptyIcon"] = Parse(dark ? "#5A5F68" : "#B4B9C1"),
+            ["BrandColor"] = accentColor,
+            ["LogoInk"] = Colors.White,
+            ["Success"] = Parse(dark ? "#7FD3AC" : "#1F6C52")
         };
         var resources = System.Windows.Application.Current.Resources;
         foreach (var (key, value) in colors)
         {
-            var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(value));
-            brush.Freeze(); resources[key] = brush;
+            var brush = new SolidColorBrush(value);
+            brush.Freeze();
+            resources[key] = brush;
         }
-        // Keep chroma in highlights; neutral surfaces carry the text and visual hierarchy.
-        var hue = (Color)ColorConverter.ConvertFromString(palette[0]);
-        var glow = (Color)ColorConverter.ConvertFromString(palette[1]);
-        Color Neutral(string hex) => (Color)ColorConverter.ConvertFromString(hex);
-        Color Mix(Color a, Color b, double amount) => Color.FromRgb(
-            (byte)(a.R + (b.R - a.R) * amount), (byte)(a.G + (b.G - a.G) * amount), (byte)(a.B + (b.B - a.B) * amount));
-        void Gradient(string key, Color start, Color end)
-        {
-            var brush = new LinearGradientBrush(start, end, new Point(0, 0), new Point(1, 1));
-            brush.Freeze(); resources[key] = brush;
-        }
-        Gradient("PanelGradient", Mix(Neutral(dark ? "#252C38" : "#EAF1FA"), glow, dark ? .07 : .06), Neutral(dark ? "#191F29" : "#E4EBF4"));
-        var light = new RadialGradientBrush(
-            Neutral(dark ? "#183D608E" : "#BFFFFFFF"), Colors.Transparent)
-        { Center = new Point(.12, .02), GradientOrigin = new Point(.12, .02), RadiusX = 1.05, RadiusY = .85 };
-        light.Freeze(); resources["FrostLight"] = light;
-        resources["FrostGrain"] = FrostGrain;
-        Gradient("FrostRim", Neutral(dark ? "#426D819E" : "#EFFFFFFF"), Neutral(dark ? "#142D3D55" : "#305F7C9E"));
-        Gradient("CardGradient", Neutral(dark ? "#2D333F" : "#FFFFFF"), Mix(Neutral(dark ? "#252A34" : "#FAFBFD"), glow, .035));
-        Gradient("CardSelectedGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .13), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .07));
-        Gradient("CardHoverGradient", Mix(Neutral(dark ? "#303848" : "#FFFFFF"), glow, .24), Mix(Neutral(dark ? "#252C39" : "#F7F9FC"), glow, .15));
-        var brand = accent == AccentPalette.Blue ? Neutral("#6CA5E8") : hue;
-        resources["BrandColor"] = new SolidColorBrush(brand);
-        if (accent == AccentPalette.Blue)
-            Gradient("BrandGradient", Mix(brand, Neutral("#FFFFFF"), .18), brand);
-        else
-            Gradient("BrandGradient", Mix(hue, glow, .52), Mix(hue, Neutral("#111D3D"), .24));
-        Gradient("ActionGradient", Mix((Color)ColorConverter.ConvertFromString(palette[dark ? 1 : 0]), Neutral("#FFFFFF"), .12), (Color)ColorConverter.ConvertFromString(palette[dark ? 1 : 0]));
-        Gradient("TabGradient", Neutral(dark ? "#465162" : "#FFFFFF"), Neutral(dark ? "#353E4D" : "#F5F8FC"));
-        resources["CardLine"] = new SolidColorBrush(Neutral(dark ? "#414958" : "#E0E6EE"));
-        resources["LogoInk"] = Brushes.White;
-        foreach (Window window in System.Windows.Application.Current.Windows) ApplyTitleBar(window);
+        foreach (System.Windows.Window window in System.Windows.Application.Current.Windows) ApplyTitleBar(window);
     }
 
-    private static ImageBrush CreateFrostGrain()
+    private static Color Parse(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+
+    private static Color Mix(Color from, Color to, double amount) => Color.FromRgb(
+        (byte)Math.Round(from.R + (to.R - from.R) * amount),
+        (byte)Math.Round(from.G + (to.G - from.G) * amount),
+        (byte)Math.Round(from.B + (to.B - from.B) * amount));
+
+    /// <summary>WCAG relative luminance; decides whether a filled accent surface needs light or dark ink.</summary>
+    private static double RelativeLuminance(Color color)
     {
-        // A tiny, fixed texture gives the shell a matte finish without sampling the desktop.
-        const int size = 64;
-        var pixels = new byte[size * size * 4];
-        var random = new Random(731);
-        for (var offset = 0; offset < pixels.Length; offset += 4)
+        static double Channel(byte value)
         {
-            var value = (byte)(random.Next(2) == 0 ? 0 : 255);
-            pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = value;
-            pixels[offset + 3] = (byte)random.Next(3, 12);
+            var channel = value / 255.0;
+            return channel <= 0.03928 ? channel / 12.92 : Math.Pow((channel + 0.055) / 1.055, 2.4);
         }
-        var bitmap = BitmapSource.Create(size, size, 96, 96, PixelFormats.Bgra32, null, pixels, size * 4);
-        bitmap.Freeze();
-        var brush = new ImageBrush(bitmap)
-        { TileMode = TileMode.Tile, ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(0, 0, size, size), Stretch = Stretch.None };
-        brush.Freeze();
-        return brush;
+        return 0.2126 * Channel(color.R) + 0.7152 * Channel(color.G) + 0.0722 * Channel(color.B);
     }
 
     internal static void ApplyTitleBar(Window window)

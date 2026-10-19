@@ -5,7 +5,7 @@ namespace ClipTap.Branding;
 
 public static class IconArtwork
 {
-    public static Color DefaultAccent => Color.FromArgb(108, 165, 232);
+    public static Color DefaultAccent => Color.FromArgb(42, 45, 52);
     public static Bitmap Render(int size, Color accent)
     {
         var bitmap = new Bitmap(size, size);
@@ -16,14 +16,13 @@ public static class IconArtwork
         using var background = new SolidBrush(accent);
         using var outer = Rounded(1, 1, 62, 62, 17);
         graphics.FillPath(background, outer);
-        using var line = new Pen(Color.White, 3.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
-        using var paper = Rounded(16, 17, 32, 37, 5);
-        graphics.DrawPath(line, paper);
-        using var clip = Rounded(24, 10, 16, 13, 4);
-        graphics.FillPath(background, clip);
-        graphics.DrawPath(line, clip);
-        graphics.DrawLine(line, 25, 34, 39, 34);
-        graphics.DrawLine(line, 25, 43, 34, 43);
+        using var ink = new SolidBrush(Color.White);
+        // Two offset tiles suggest saved content, with a deliberately spare silhouette.
+        using var back = Rounded(14, 14, 27, 29, 5);
+        using var outline = new Pen(Color.FromArgb(190, 195, 205), 3.5f);
+        graphics.DrawPath(outline, back);
+        using var front = Rounded(25, 24, 25, 28, 5);
+        graphics.FillPath(ink, front);
         return bitmap;
     }
 

@@ -85,10 +85,18 @@ internal sealed class WindowsHistorySource : ISystemHistorySource
     internal static async Task<BitmapSource> DecodeThumbnailAsync(IRandomAccessStream stream)
     {
         var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(stream);
-        // Keep the source pixels; WPF scales only the presentation to the card and monitor DPI.
-        var width = checked((int)decoder.PixelWidth);
-        var height = checked((int)decoder.PixelHeight);
-        var transform = new Windows.Graphics.Imaging.BitmapTransform();
+        // Enough for the large detail pane at high DPI, without retaining every 4K screenshot at
+        // full decoded size. Pasting still restores the original Windows history item, never this preview.
+        const int maximumPreviewEdge = 1600;
+        var scale = Math.Min(1d, (double)maximumPreviewEdge / Math.Max(decoder.PixelWidth, decoder.PixelHeight));
+        var width = Math.Max(1, checked((int)Math.Round(decoder.PixelWidth * scale)));
+        var height = Math.Max(1, checked((int)Math.Round(decoder.PixelHeight * scale)));
+        var transform = new Windows.Graphics.Imaging.BitmapTransform
+        {
+            ScaledWidth = (uint)width,
+            ScaledHeight = (uint)height,
+            InterpolationMode = Windows.Graphics.Imaging.BitmapInterpolationMode.Fant
+        };
         var pixels = await decoder.GetPixelDataAsync(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
             Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied, transform,
             Windows.Graphics.Imaging.ExifOrientationMode.IgnoreExifOrientation, Windows.Graphics.Imaging.ColorManagementMode.DoNotColorManage);

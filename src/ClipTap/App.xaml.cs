@@ -23,6 +23,7 @@ public partial class App : System.Windows.Application
     private SystemHistoryService? _history;
     private bool _ownsMutex;
     private bool _dirty;
+    private string? _lastSaveError;
     private MainWindow? _panel;
     private readonly bool _testHost;
     internal Library Library { get; set; } = null!;
@@ -111,8 +112,7 @@ public partial class App : System.Windows.Application
 
     private static Icon CreateIcon()
     {
-        var accent = ((System.Windows.Media.SolidColorBrush)Current.Resources["BrandColor"]).Color;
-        using var bitmap = IconArtwork.Render(32, Color.FromArgb(accent.R, accent.G, accent.B));
+        using var bitmap = IconArtwork.Render(32, IconArtwork.DefaultAccent);
         var handle = bitmap.GetHicon();
         try { using var original = Icon.FromHandle(handle); return (Icon)original.Clone(); }
         finally { DestroyIcon(handle); }
@@ -192,10 +192,11 @@ public partial class App : System.Windows.Application
     internal bool TrySaveSettings(AppSettings settings, out string error)
     {
         error = "";
+        _lastSaveError = null;
         if (settings.WakeHotkey?.IsValid != true) { error = "快捷键格式无效"; return false; }
         var saved = _events is null ? TryCommit(Library.WithSettings(settings)) :
             _events.TryChange(settings.WakeHotkey, () => TryCommit(Library.WithSettings(settings)), out error);
-        if (!saved && error.Length == 0) error = "保存失败，请重试";
+        if (!saved) error = _lastSaveError ?? (error.Length > 0 ? error : "保存失败，请重试");
         if (saved && _tray is not null) _tray.Text = "ClipTap · " + HotkeyLabel;
         return saved;
     }
@@ -209,6 +210,7 @@ public partial class App : System.Windows.Application
 
     private bool TryCommit(Library candidate)
     {
+        _lastSaveError = null;
         try
         {
             _store!.Save(candidate.State);
@@ -219,7 +221,19 @@ public partial class App : System.Windows.Application
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
-        { return false; }
+        {
+            var reason = ex switch
+            {
+                UnauthorizedAccessException => "无法写入本地数据，请检查权限或安全软件的拦截记录",
+                CryptographicException => "Windows 数据加密失败，无法保存",
+                IOException when (ex.HResult & 0xffff) is 32 or 33 => "本地数据文件被占用，请稍后重试",
+                IOException when (ex.HResult & 0xffff) is 39 or 112 => "磁盘空间不足，无法保存",
+                _ => "本地数据写入失败：" + ex.Message
+            };
+            if (ex.InnerException is Win32Exception native) reason += $"：{native.Message}（Win32 {native.NativeErrorCode}）";
+            _lastSaveError = $"{reason}（0x{ex.HResult:X8}）";
+            return false;
+        }
     }
 
     internal bool QuitForUpdate(string installer)

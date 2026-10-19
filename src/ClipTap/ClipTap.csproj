@@ -7,14 +7,19 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>ClipTap</AssemblyName>
     <RootNamespace>ClipTap</RootNamespace>
-    <Version>0.1.7</Version>
+    <Version>0.1.8</Version>
     <ClipTapDistribution Condition="'$(ClipTapDistribution)' == ''">Portable</ClipTapDistribution>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/cliptap.ico</ApplicationIcon>
+    <!-- English falls back to neutral resources; ship only the Chinese satellite assemblies. -->
+    <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+    <!-- WPF relies on reflection and XAML; trimming is unsupported. -->
+    <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="ClipTapDistribution" Value="$(ClipTapDistribution)" />
     <ProjectReference Include="../ClipTap.Core/ClipTap.Core.csproj" />
     <Resource Include="Assets/cliptap.ico" />
+    <Resource Include="Assets/cliptap.png" />
   </ItemGroup>
 </Project>

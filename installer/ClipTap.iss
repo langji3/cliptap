@@ -38,7 +38,7 @@ SetupIconFile=..\src\ClipTap\Assets\cliptap.ico
 UninstallDisplayIcon={app}\ClipTap.exe
 UninstallDisplayName=ClipTap
 OutputDir={#OutputDir}
-Compression=lzma2
+Compression=lzma2/ultra64
 SolidCompression=yes
 CloseApplications=no
 RestartApplications=no
@@ -51,6 +51,33 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; Remove only retired satellite assemblies during upgrades; user data lives outside {app}.
+[InstallDelete]
+Type: files; Name: "{app}\cs\*.resources.dll"
+Type: dirifempty; Name: "{app}\cs"
+Type: files; Name: "{app}\de\*.resources.dll"
+Type: dirifempty; Name: "{app}\de"
+Type: files; Name: "{app}\es\*.resources.dll"
+Type: dirifempty; Name: "{app}\es"
+Type: files; Name: "{app}\fr\*.resources.dll"
+Type: dirifempty; Name: "{app}\fr"
+Type: files; Name: "{app}\it\*.resources.dll"
+Type: dirifempty; Name: "{app}\it"
+Type: files; Name: "{app}\ja\*.resources.dll"
+Type: dirifempty; Name: "{app}\ja"
+Type: files; Name: "{app}\ko\*.resources.dll"
+Type: dirifempty; Name: "{app}\ko"
+Type: files; Name: "{app}\pl\*.resources.dll"
+Type: dirifempty; Name: "{app}\pl"
+Type: files; Name: "{app}\pt-BR\*.resources.dll"
+Type: dirifempty; Name: "{app}\pt-BR"
+Type: files; Name: "{app}\ru\*.resources.dll"
+Type: dirifempty; Name: "{app}\ru"
+Type: files; Name: "{app}\tr\*.resources.dll"
+Type: dirifempty; Name: "{app}\tr"
+Type: files; Name: "{app}\zh-Hant\*.resources.dll"
+Type: dirifempty; Name: "{app}\zh-Hant"
 
 [Run]
 #ifndef InstallerTest

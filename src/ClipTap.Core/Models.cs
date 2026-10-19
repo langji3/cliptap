@@ -7,7 +7,7 @@ public sealed record Snippet(Guid Id, string Title, string Value, bool IsSensiti
 
 public sealed class AppSettings
 {
-    public AppearanceMode Theme { get; set; } = AppearanceMode.Light;
+    public AppearanceMode Theme { get; set; } = AppearanceMode.System;
     public AccentPalette Accent { get; set; } = AccentPalette.Blue;
     public int HistoryLimit { get; set; } = 100;
     public bool CapturePaused { get; set; }
@@ -23,4 +23,5 @@ public sealed class AppState
     public AppSettings Settings { get; set; } = new();
     public List<ClipEntry> History { get; set; } = [];
     public List<Snippet> Snippets { get; set; } = [];
+    public List<string> PinnedApplications { get; set; } = [];
 }

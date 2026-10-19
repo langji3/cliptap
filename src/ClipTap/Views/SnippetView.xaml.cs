@@ -24,6 +24,8 @@ public partial class SnippetView : UserControl
         _ready = true;
         UpdateMode();
         Loaded += (_, _) => TitleInput.Focus();
+        // Deleting a snippet in a single-window panel would otherwise leave focus nowhere.
+        Confirmation.FocusReleased += () => { if (IsVisible) TitleInput.Focus(); };
     }
 
     private void OnModeChanged(object sender, RoutedEventArgs e) { if (_ready) { RevealInput.IsChecked = false; UpdateMode(); } }

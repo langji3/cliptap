@@ -45,6 +45,8 @@ public partial class SettingsView : UserControl
         catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException or IOException)
         { StartupInput.IsEnabled = false; ErrorLabel.Text = "无法读取开机启动设置"; }
         _ready = true;
+        // Clearing history in a single-window panel would otherwise leave focus nowhere.
+        Confirmation.FocusReleased += () => { if (IsVisible) ThemeInput.Focus(); };
     }
 
     internal void Discard()
